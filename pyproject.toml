@@ -1,0 +1,48 @@
+[tool.ruff]
+# These are top-level Ruff settings (keep `line-length` here)
+target-version = "py310" # Or py313, etc.
+line-length = 88
+
+# Exclude files/directories (top-level `exclude` for Ruff)
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".ruff_cache",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "build",
+    "dist",
+    "cdk.out",
+    "frontend",
+]
+
+# This is the top-level section for LINTING rules
+[tool.ruff.lint]
+# >>> MOVED HERE from [tool.ruff] <<<
+select = ["E", "F", "W", "I", "C", "N", "D", "B", "UP"]
+ignore = ["D100", "D104", "D105", "D203", "D213"]
+# No line-length here anymore, it's global under [tool.ruff]
+
+# Settings for specific linting plugins go under `[tool.ruff.lint.<plugin_name>]`
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+# Add this section for isort-specific settings
+[tool.ruff.lint.isort]
+# This tells isort to combine imports from the same module
+# that use 'as' (e.g., aws_cdk.aws_s3 as s3) into one block.
+combine-as-imports = true
+# You might also want to explicitly set known-third-party for AWS CDK,
+# though often not strictly necessary if Ruff identifies them correctly.
+# known-third-party = ["aws_cdk", "constructs"] # Example, if needed
+
+# This is the top-level section for Ruff's built-in FORMATTER
+[tool.ruff.format]
+# No line-length here anymore, it's global under [tool.ruff]
+docstring-code-format = true

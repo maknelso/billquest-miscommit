@@ -1,0 +1,9 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.5 # Use the latest stable Ruff version
+    hooks:
+      # LINTER
+      # - id: ruff
+      #   args: ["--fix"]
+      # FORMATTING
+      - id: ruff-format
