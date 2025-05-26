@@ -168,7 +168,7 @@ class BillQuestMiscommitStack(Stack):
                     "Authorization",
                     "X-Api-Key",
                     "X-Amz-Security-Token",
-                ],  # Standard headers
+                ],
             ),
         )
 

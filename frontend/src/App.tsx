@@ -1,13 +1,15 @@
-import { useState, FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import './App.css'; // Keep this import if you still have an App.css file, otherwise remove it
 
 function App() {
   const [payerAccountId, setPayerAccountId] = useState<string>('');
   const [billPeriodStartDate, setBillPeriodStartDate] = useState<string>('');
   const [invoiceId, setInvoiceId] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    setError(null);
 
     // Basic validation for payerAccountId
     if (!payerAccountId.trim()) {
@@ -17,19 +19,49 @@ function App() {
 
     // Validation for at least one of the date or invoice ID
     if (!billPeriodStartDate.trim() && !invoiceId.trim()) {
-        alert('Please provide either a Bill Period Start Date OR an Invoice ID.');
-        return;
+      alert('Please provide either a Bill Period Start Date OR an Invoice ID.');
+      return;
     }
 
-
-    console.log('Form Submitted!');
-    console.log('Payer Account ID:', payerAccountId);
+    const queryParams = new URLSearchParams();
+    queryParams.append('payerAccountId', payerAccountId);
 
     if (billPeriodStartDate.trim()) {
-      console.log('Bill Period Start Date:', billPeriodStartDate);
+      queryParams.append('billPeriodStartDate', billPeriodStartDate);
+    } else if (invoiceId.trim()) {
+      queryParams.append('invoiceId', invoiceId);
     }
-    if (invoiceId.trim()) { // Use if for both to allow both, or else if if strictly one or the other
-      console.log('Invoice ID:', invoiceId);
+
+    // Construct the full URL with query parameters
+    const apiUrl = `https://jqtruoo364.execute-api.us-east-1.amazonaws.com/prod?${queryParams.toString()}`;
+
+    try {
+      // Make a GET request to the API Gateway
+      const response = await fetch(apiUrl, { // Use the constructed URL with query params
+        method: 'GET',
+        // No 'body' property for GET requests
+        headers: {
+          // You might need an API Key here if your API Gateway uses one
+          // 'X-Api-Key': 'YOUR_API_KEY_HERE',
+        },
+      });
+
+      if (!response.ok) {
+        // Attempt to get more specific error info if available from the API
+        const errorText = await response.text();
+        throw new Error(`API request failed with status ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Response from API:', data);
+      alert('Request submitted successfully! Check console for API response.'); // Good user feedback
+
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      // Decide how to handle errors:
+      alert(`Failed to submit the form: ${error instanceof Error ? error.message : String(error)}`);
+      // If you uncommented setError state:
+      // setError(`Failed to submit the form: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     // Optional: Clear the form fields after submission
@@ -42,7 +74,7 @@ function App() {
     <div className="app-container">
       <form onSubmit={handleSubmit} className="billing-form">
         <h2>Bill Information Request</h2>
-
+        {error && <p style={{ color: 'red' }}>{error}</p>}
         <div className="form-group">
           <label htmlFor="payerAccountId">Payer Account ID: (required)</label> {/* Added (required) */}
           <input
@@ -65,7 +97,7 @@ function App() {
             id="billPeriodStartDate"
             value={billPeriodStartDate}
             onChange={(e) => setBillPeriodStartDate(e.target.value)}
-            placeholder="e.g. 01-25"
+            placeholder="e.g. 2023-01"
           />
         </div>
 

@@ -16,6 +16,16 @@ table_name = os.environ.get("TABLE_NAME")
 table = dynamodb_client.Table(table_name)
 
 
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            # Convert Decimal objects to float for JSON serialization.
+            # You could also use str(obj) if you need exact string representation
+            # and want to avoid potential floating-point inaccuracies.
+            return float(obj)
+        return json.JSONEncoder.default(self, obj)
+
+
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event, indent=2)}")
 
