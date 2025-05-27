@@ -6,10 +6,12 @@ function App() {
   const [billPeriodStartDate, setBillPeriodStartDate] = useState<string>('');
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [apiResponse, setApiResponse] = useState<string | null>(null); // New state for API response
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    setApiResponse(null); // Clear previous response on new submission
 
     // Basic validation for payerAccountId
     if (!payerAccountId.trim()) {
@@ -24,22 +26,26 @@ function App() {
     }
 
     const queryParams = new URLSearchParams();
-    queryParams.append('payerAccountId', payerAccountId);
+    // Correctly map your form inputs to the Lambda's expected query parameters
+    queryParams.append('queryType', 'account'); // Assuming 'account' is the queryType for this form
+    queryParams.append('accountId', payerAccountId); // Use payerAccountId as accountId for Lambda
 
+    // Only append one of the date or invoice ID, based on which one is provided
     if (billPeriodStartDate.trim()) {
+      // Assuming your Lambda expects 'billPeriodStartDate' as a parameter
       queryParams.append('billPeriodStartDate', billPeriodStartDate);
     } else if (invoiceId.trim()) {
+      // Assuming your Lambda expects 'invoiceId' as a parameter
       queryParams.append('invoiceId', invoiceId);
     }
 
-    // Construct the full URL with query parameters
-    const apiUrl = `https://jqtruoo364.execute-api.us-east-1.amazonaws.com/prod?${queryParams.toString()}`;
+    // Use the confirmed working API Gateway URL
+    const apiUrl = `https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query?${queryParams.toString()}`;
 
     try {
       // Make a GET request to the API Gateway
-      const response = await fetch(apiUrl, { // Use the constructed URL with query params
+      const response = await fetch(apiUrl, {
         method: 'GET',
-        // No 'body' property for GET requests
         headers: {
           // You might need an API Key here if your API Gateway uses one
           // 'X-Api-Key': 'YOUR_API_KEY_HERE',
@@ -47,21 +53,21 @@ function App() {
       });
 
       if (!response.ok) {
-        // Attempt to get more specific error info if available from the API
         const errorText = await response.text();
         throw new Error(`API request failed with status ${response.status}: ${errorText || response.statusText}`);
       }
 
       const data = await response.json();
       console.log('Response from API:', data);
-      alert('Request submitted successfully! Check console for API response.'); // Good user feedback
+      setApiResponse(JSON.stringify(data, null, 2)); // Store pretty-printed JSON response
+      alert('Request submitted successfully!'); // Good user feedback
 
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      // Decide how to handle errors:
-      alert(`Failed to submit the form: ${error instanceof Error ? error.message : String(error)}`);
-      // If you uncommented setError state:
-      // setError(`Failed to submit the form: ${error instanceof Error ? error.message : String(error)}`);
+    } catch (err) {
+      console.error('Error submitting form:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Failed to submit the form: ${errorMessage}`);
+      setApiResponse(null); // Clear response on error
+      alert(`Failed to submit the form: ${errorMessage}`);
     }
 
     // Optional: Clear the form fields after submission
@@ -76,7 +82,7 @@ function App() {
         <h2>Bill Information Request</h2>
         {error && <p style={{ color: 'red' }}>{error}</p>}
         <div className="form-group">
-          <label htmlFor="payerAccountId">Payer Account ID: (required)</label> {/* Added (required) */}
+          <label htmlFor="payerAccountId">Payer Account ID: (required)</label>
           <input
             type="text"
             id="payerAccountId"
@@ -86,12 +92,10 @@ function App() {
           />
         </div>
 
-        {/* Removed the <p className="or-separator">OR</p> */}
-
-        <p className="choose-one-text">Choose at least ONE of the below:</p> {/* New instruction text */}
+        <p className="choose-one-text">Choose at least ONE of the below:</p>
 
         <div className="form-group">
-          <label htmlFor="billPeriodStartDate">Bill Period Start Date:</label> {/* Label simplified */}
+          <label htmlFor="billPeriodStartDate">Bill Period Start Date:</label>
           <input
             type="text"
             id="billPeriodStartDate"
@@ -102,7 +106,7 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="invoiceId">Invoice ID:</label> {/* Label simplified */}
+          <label htmlFor="invoiceId">Invoice ID:</label>
           <input
             type="text"
             id="invoiceId"
@@ -114,6 +118,20 @@ function App() {
 
         <button type="submit">Submit</button>
       </form>
+
+      {/* New section to display API response */}
+      {apiResponse && (
+        <div className="api-response-container">
+          <h3>API Response:</h3>
+          <textarea
+            readOnly
+            value={apiResponse}
+            rows={10} // Adjust rows as needed
+            cols={50} // Adjust cols as needed
+            style={{ width: '100%', resize: 'vertical' }}
+          ></textarea>
+        </div>
+      )}
     </div>
   );
 }
