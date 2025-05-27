@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -17,13 +18,13 @@ table = dynamodb_client.Table(table_name)
 
 
 class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
+    def default(self, o):
+        if isinstance(o, Decimal):
             # Convert Decimal objects to float for JSON serialization.
             # You could also use str(obj) if you need exact string representation
             # and want to avoid potential floating-point inaccuracies.
-            return float(obj)
-        return json.JSONEncoder.default(self, obj)
+            return float(o)
+        return json.JSONEncoder.default(self, o)
 
 
 def lambda_handler(event, context):
@@ -44,7 +45,9 @@ def lambda_handler(event, context):
             return {
                 "statusCode": 400,
                 "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"message": f"Invalid query type: {query_type}"}),
+                "body": json.dumps(
+                    {"message": f"Invalid query type: {query_type}"}, cls=DecimalEncoder
+                ),
             }
 
     except Exception as e:
@@ -72,7 +75,7 @@ def query_by_account(params):
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"items": response.get("Items", [])}),
+        "body": json.dumps({"items": response.get("Items", [])}, cls=DecimalEncoder),
     }
 
 
