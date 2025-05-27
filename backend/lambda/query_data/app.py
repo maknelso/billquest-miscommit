@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from decimal import Decimal  # Import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -29,29 +30,41 @@ class DecimalEncoder(json.JSONEncoder):
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event, indent=2)}")
 
+    # Define common headers for CORS
+    cors_headers = {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "http://localhost:5173",  # Allow your frontend origin
+        "Access-Control-Allow-Methods": "GET,OPTIONS",  # Allow GET and OPTIONS methods
+        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",  # Allow specified headers
+    }
+
     try:
         query_params = event.get("queryStringParameters", {}) or {}
         query_type = query_params.get("queryType", "account")
 
         # Different query types
         if query_type == "account":
-            return query_by_account(query_params)
+            response = query_by_account(query_params)
         elif query_type == "date":
-            return query_by_date(query_params)
+            response = query_by_date(query_params)
         elif query_type == "invoice":
-            return query_by_invoice(query_params)
+            response = query_by_invoice(query_params)
         else:
-            return {
+            response = {
                 "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
                 "body": json.dumps({"message": f"Invalid query type: {query_type}"}),
             }
 
+        # Merge CORS headers into the response headers for all successful paths
+        response["headers"] = {**response.get("headers", {}), **cors_headers}
+        return response
+
     except Exception as e:
         logger.error(f"Error querying data: {str(e)}")
+        # For error responses, also include CORS headers
         return {
             "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
+            "headers": cors_headers,  # Apply CORS headers to error response
             "body": json.dumps({"message": f"Error: {str(e)}"}),
         }
 
@@ -72,7 +85,9 @@ def query_by_account(params):
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"items": response.get("Items", [])}),
+        "body": json.dumps(
+            {"items": response.get("Items", [])}, cls=DecimalEncoder
+        ),  # Added DecimalEncoder
     }
 
 
@@ -98,7 +113,9 @@ def query_by_date(params):
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"items": response.get("Items", [])}),
+        "body": json.dumps(
+            {"items": response.get("Items", [])}, cls=DecimalEncoder
+        ),  # Added DecimalEncoder
     }
 
 
@@ -120,5 +137,7 @@ def query_by_invoice(params):
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"items": response.get("Items", [])}),
+        "body": json.dumps(
+            {"items": response.get("Items", [])}, cls=DecimalEncoder
+        ),  # Added DecimalEncoder
     }
