@@ -1,9 +1,5 @@
 import { Amplify } from 'aws-amplify';
 
-//*TEST
-console.log('Amplify.configure called'); // Add this
-console.log('window object:', typeof window); // Add this
-
 Amplify.configure({
   Auth: {
     Cognito: {
