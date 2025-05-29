@@ -39,7 +39,7 @@ function Header() {
           <div className="user-info">
             <span className="user-email">{userEmail}</span>
             <button onClick={handleLogout} className="logout-button">
-              Log Out
+              Sign Out
             </button>
           </div>
         )}

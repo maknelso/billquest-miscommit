@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { signIn } from '../aws/auth';
 import { useNavigate } from 'react-router-dom';
+import './Login.css';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -28,7 +29,7 @@ function Login() {
   return (
     <div className="login-container">
       <form onSubmit={handleSubmit} className="login-form">
-        <h2>Login</h2>
+        <h2>Sign-In</h2>
         {error && <p className="error-message">{error}</p>}
         
         <div className="form-group">

@@ -1,32 +1,26 @@
-.app-container {
+.login-container {
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  padding: 0;
-  margin: 0;
-  width: 100%;
+  min-height: 100vh;
+  background-color: #f2f3f3;
+  font-family: "Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif;
 }
 
-.billing-form {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.login-form {
+  width: 350px;
   padding: 20px 26px;
-  max-width: 350px;
-  margin: 20px auto;
-  width: 100%;
   border: 1px solid #ddd;
   border-radius: 8px;
   background-color: #fff;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
 
-.billing-form h2 {
+.login-form h2 {
   font-weight: 500;
   font-size: 24px;
   margin-bottom: 20px;
   color: #16191f;
-  align-self: flex-start;
 }
 
 .form-group {
@@ -60,11 +54,10 @@
   outline: none;
 }
 
-.choose-one-text {
-  margin: 15px 0;
-  font-style: italic;
-  color: #666;
-  align-self: flex-start;
+.error-message {
+  color: #d13212;
+  font-size: 13px;
+  margin: 5px 0 15px;
 }
 
 button[type="submit"] {
@@ -95,8 +88,27 @@ button[type="submit"]:active {
   box-shadow: none;
 }
 
-.api-response-container {
-  margin-top: 30px;
-  width: 100%;
-  max-width: 350px;
+button[type="submit"]:disabled {
+  background-color: #cccccc;
+  border-color: #bbbbbb;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.signup-link {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e7e7e7;
+  font-size: 13px;
+  text-align: center;
+}
+
+.signup-link a {
+  color: #0073bb;
+  text-decoration: none;
+}
+
+.signup-link a:hover {
+  color: #ff9900;
+  text-decoration: underline;
 }
