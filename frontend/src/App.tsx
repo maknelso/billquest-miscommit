@@ -2,6 +2,8 @@ import { useState, type FormEvent, useEffect } from 'react';
 import './App.css'; // Keep this import if you still have an App.css file, otherwise remove it
 import { getCurrentUser } from './aws/auth';
 import { useNavigate } from 'react-router-dom';
+import Header from './components/Header';
+import './components/Header.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -112,6 +114,7 @@ function App() {
 
   return (
     <div className="app-container">
+      <Header />
       <form onSubmit={handleSubmit} className="billing-form">
         <h2>Bill Information Request</h2>
         {error && <p style={{ color: 'red' }}>{error}</p>}

@@ -3,8 +3,7 @@ import {
   signIn as amplifySignIn,
   getCurrentUser as amplifyGetCurrentUser,
   SignUpInput, // Type for signUp input
-  // If you need signOut or other auth functions, import them here too
-  // e.g., signOut as amplifySignOut
+  signOut as amplifySignOut,
 } from 'aws-amplify/auth';
 
 export async function signUp(username: string, password: string, email: string) {
@@ -63,18 +62,15 @@ export async function getCurrentUser() {
   }
 }
 
-// If you need a signOut function:
-// import { signOut as amplifySignOut } from 'aws-amplify/auth';
-//
-// export async function signOut() {
-//   try {
-//     await amplifySignOut();
-//     console.log('Sign out successful');
-//   } catch (error) {
-//     console.error('Error signing out:', error);
-//     throw error;
-//   }
-// }
+export async function signOut() {
+  try {
+    await amplifySignOut();
+    console.log('Sign out successful');
+  } catch (error) {
+    console.error('Error signing out:', error);
+    throw error;
+  }
+}
 
 // Don't forget to configure Amplify in your app's entry point (e.g., main.tsx or index.tsx)
 // import { Amplify } from 'aws-amplify';
