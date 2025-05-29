@@ -1,12 +1,17 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import './App.css'; // Keep this import if you still have an App.css file, otherwise remove it
+import { getCurrentUser } from './aws/auth';
+import { useNavigate } from 'react-router-dom';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [payerAccountId, setPayerAccountId] = useState<string>('');
   const [billPeriodStartDate, setBillPeriodStartDate] = useState<string>('');
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiResponse, setApiResponse] = useState<string | null>(null); // New state for API response
+  const navigate = useNavigate();
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -75,6 +80,35 @@ function App() {
     setBillPeriodStartDate('');
     setInvoiceId('');
   };
+
+  useEffect(() => {
+    async function checkAuthStatus() {
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          setIsAuthenticated(true);
+        } else {
+          // Redirect to login if not authenticated
+          navigate('/login');
+        }
+      } catch (error) {
+        console.error('Authentication check failed:', error);
+        navigate('/login');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    checkAuthStatus();
+  }, [navigate]);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <div className="app-container">
