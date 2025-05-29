@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_apigateway as apigw,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_cognito as cognito,  # For user authentication
     aws_dynamodb as dynamodb,
     aws_lambda as lambda_,
     aws_s3 as s3,
@@ -226,6 +227,95 @@ class BillQuestMiscommitStack(Stack):
             distribution_paths=["/*"],
         )
 
+        # --- 10. AWS Cognito User Pool ---
+        # Create a user pool for authentication
+        user_pool = cognito.UserPool(
+            self,
+            "BillQuestUserPoolMiscommit",
+            user_pool_name=f"{stack_prefix}-UserPool",
+            # Self sign-up allows users to register themselves
+            self_sign_up_enabled=True,
+            # Configure sign-in options (email is primary)
+            sign_in_aliases=cognito.SignInAliases(
+                email=True,
+                username=True,
+            ),
+            # Configure password policy
+            password_policy=cognito.PasswordPolicy(
+                min_length=8,
+                require_lowercase=True,
+                require_uppercase=True,
+                require_digits=True,
+                require_symbols=True,
+            ),
+            # Configure email verification
+            auto_verify={"email": True},
+            # Standard attributes required from users
+            standard_attributes={
+                "email": {"required": True, "mutable": True},
+                "fullname": {"required": False, "mutable": True},
+            },
+            # Removal policy for development (use RETAIN for production)
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # --- 11. Cognito User Pool Client ---
+        # This client will be used by your frontend application
+        user_pool_client = cognito.UserPoolClient(
+            self,
+            "BillQuestMiscommitWebClient",
+            user_pool=user_pool,
+            user_pool_client_name=f"{stack_prefix}-WebClient",
+            # Generate a client secret (set to False if using a public client like a SPA)
+            generate_secret=False,
+            # Configure OAuth flows
+            auth_flows={
+                "user_password": True,
+                "user_srp": True,
+            },
+            # Configure OAuth scopes
+            o_auth={
+                "flows": {
+                    "implicit_code_grant": True,
+                },
+                "scopes": [
+                    cognito.OAuthScope.EMAIL,
+                    cognito.OAuthScope.OPENID,
+                    cognito.OAuthScope.PROFILE,
+                ],
+                "callback_urls": [
+                    f"https://{distribution.distribution_domain_name}/callback",
+                    "http://localhost:5173/callback",  # For local development
+                ],
+                "logout_urls": [
+                    f"https://{distribution.distribution_domain_name}",
+                    "http://localhost:5173",  # For local development
+                ],
+            },
+            # Prevent users from being automatically logged out
+            refresh_token_validity=Duration.days(30),
+            access_token_validity=Duration.minutes(60),
+            id_token_validity=Duration.minutes(60),
+        )
+
+        # --- 12. Cognito Authorizer for API Gateway ---
+        # Create an authorizer that uses the Cognito User Pool
+        auth = apigw.CognitoUserPoolsAuthorizer(
+            self,
+            "BillQuestAuthorizer",
+            cognito_user_pools=[user_pool],
+        )
+
+        # Add a protected resource that requires authentication
+        protected_resource = api.root.add_resource("protected")
+        protected_resource.add_method(
+            "GET",
+            apigw.LambdaIntegration(query_lambda),
+            # Require authorization for this endpoint
+            authorizer=auth,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
         # --- Outputs ---
         # These outputs will be displayed in your terminal after 'cdk deploy'
         # You'll use these URLs for your frontend configuration and testing.
@@ -240,4 +330,24 @@ class BillQuestMiscommitStack(Stack):
             "WebsiteUrl",
             value=f"https://{distribution.distribution_domain_name}",
             description="The URL for your static website hosted on CloudFront.",
+        )
+
+        # Cognito outputs for frontend configuration
+        CfnOutput(
+            self,
+            "UserPoolId",
+            value=user_pool.user_pool_id,
+            description="The ID of the Cognito User Pool.",
+        )
+        CfnOutput(
+            self,
+            "UserPoolClientId",
+            value=user_pool_client.user_pool_client_id,
+            description="The ID of the Cognito User Pool Client.",
+        )
+        CfnOutput(
+            self,
+            "UserPoolDomain",
+            value=f"{user_pool.user_pool_id}.auth.{Stack.of(self).region}.amazoncognito.com",
+            description="The domain for the Cognito hosted UI.",
         )
