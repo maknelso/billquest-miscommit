@@ -102,6 +102,32 @@ export default defineConfig({
 - **CORS issues**: Ensure the callback URLs in your Cognito User Pool Client match exactly with your local development URL.
 - **Authentication errors**: Verify that the Cognito configuration values are correct and match your deployed resources.
 
+## Architecture
+
+```mermaid
+graph TD
+    %% Backend Data Ingestion Flow
+    subgraph "Backend Data Ingestion"
+        A[Raw CSV File] -->|Upload| B[S3 Bucket]
+        B -->|Triggers| C[IngestDataLambda]
+        C -->|Processes & Stores| D[DynamoDB Table]
+    end
+
+    %% Frontend User Flow
+    subgraph "Frontend User Flow"
+        E[User] -->|Authenticates| F[Cognito]
+        E -->|Submits Query| G[React Frontend]
+        G -->|HTTPS Request| H[API Gateway]
+        H -->|Invokes| I[QueryDataLambda]
+        I -->|Queries| D
+        I -->|Returns Results| G
+        G -->|Displays Data| E
+    end
+
+    %% Download Flow
+    G -->|Download CSV| E
+```
+
 ## Development
 
 - Backend code is in the `backend/` directory
