@@ -8,7 +8,7 @@ from decimal import Decimal
 import io
 
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -77,12 +77,39 @@ def lambda_handler(event, context):
 
 def query_by_account_items(params):
     account_id = params.get("accountId")
+    invoice_id = params.get("invoiceId")
+    bill_period_start_date = params.get("billPeriodStartDate")
+
     if not account_id:
         raise ValueError("Missing 'accountId' parameter")
 
-    response = table.query(
-        KeyConditionExpression=Key("payer_account_id").eq(account_id)
-    )
+    # If invoice ID is provided, use that for more specific filtering
+    if invoice_id:
+        logger.info(f"Querying by account ID {account_id} and invoice ID {invoice_id}")
+        response = table.query(
+            IndexName="InvoiceIndex",
+            KeyConditionExpression=Key("invoice_id").eq(invoice_id),
+            FilterExpression=Attr("payer_account_id").eq(account_id),
+        )
+    # If bill period start date is provided, use DateProductIndex
+    elif bill_period_start_date:
+        logger.info(
+            f"Querying by account ID {account_id} and bill period {bill_period_start_date}"
+        )
+        response = table.query(
+            IndexName="DateProductIndex",
+            KeyConditionExpression=Key("bill_period_start_date").eq(
+                bill_period_start_date
+            ),
+            FilterExpression=Attr("payer_account_id").eq(account_id),
+        )
+    # Otherwise just query by account ID
+    else:
+        logger.info(f"Querying by account ID {account_id} only")
+        response = table.query(
+            KeyConditionExpression=Key("payer_account_id").eq(account_id)
+        )
+
     return response.get("Items", [])
 
 
