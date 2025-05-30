@@ -76,11 +76,56 @@ function App() {
       setApiResponse(null); // Clear response on error
       alert(`Failed to submit the form: ${errorMessage}`);
     }
-
-    // Optional: Clear the form fields after submission
-    setPayerAccountId('');
-    setBillPeriodStartDate('');
-    setInvoiceId('');
+  };
+  
+  const handleDownloadCSV = async () => {
+    if (!payerAccountId.trim()) {
+      alert('Please submit a query first before downloading CSV');
+      return;
+    }
+    
+    const queryParams = new URLSearchParams();
+    queryParams.append('queryType', 'account');
+    queryParams.append('accountId', payerAccountId);
+    queryParams.append('format', 'csv'); // Request CSV format
+    
+    if (billPeriodStartDate.trim()) {
+      queryParams.append('billPeriodStartDate', billPeriodStartDate);
+    } else if (invoiceId.trim()) {
+      queryParams.append('invoiceId', invoiceId);
+    }
+    
+    const apiUrl = `https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query?${queryParams.toString()}`;
+    
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download CSV: ${response.statusText}`);
+      }
+      
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      // Create a download link and trigger the download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'billing_data.csv';
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (err) {
+      console.error('Error downloading CSV:', err);
+      alert(`Failed to download CSV: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   useEffect(() => {
@@ -159,7 +204,15 @@ function App() {
       {/* New section to display API response */}
       {apiResponse && (
         <div className="api-response-container">
-          <h3>API Response:</h3>
+          <div className="response-header">
+            <h3>API Response:</h3>
+            <button 
+              onClick={handleDownloadCSV} 
+              className="download-csv-button"
+            >
+              Download CSV
+            </button>
+          </div>
           <textarea
             readOnly
             value={apiResponse}

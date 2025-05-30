@@ -2,7 +2,10 @@
 import json
 import logging
 import os
+import csv
+import base64
 from decimal import Decimal
+import io
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -21,8 +24,6 @@ class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):
             # Convert Decimal objects to float for JSON serialization.
-            # You could also use str(obj) if you need exact string representation
-            # and want to avoid potential floating-point inaccuracies.
             return float(obj)
         return json.JSONEncoder.default(self, obj)
 
@@ -32,7 +33,6 @@ def lambda_handler(event, context):
 
     # Define common headers for CORS
     cors_headers = {
-        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "http://localhost:5173",  # Allow your frontend origin
         "Access-Control-Allow-Methods": "GET,OPTIONS",  # Allow GET and OPTIONS methods
         "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",  # Allow specified headers
@@ -41,66 +41,57 @@ def lambda_handler(event, context):
     try:
         query_params = event.get("queryStringParameters", {}) or {}
         query_type = query_params.get("queryType", "account")
+        format_type = query_params.get(
+            "format", "json"
+        )  # Default to JSON if not specified
 
         # Different query types
         if query_type == "account":
-            response = query_by_account(query_params)
+            items = query_by_account_items(query_params)
         elif query_type == "date":
-            response = query_by_date(query_params)
+            items = query_by_date_items(query_params)
         elif query_type == "invoice":
-            response = query_by_invoice(query_params)
+            items = query_by_invoice_items(query_params)
         else:
-            response = {
+            return {
                 "statusCode": 400,
+                "headers": {**{"Content-Type": "application/json"}, **cors_headers},
                 "body": json.dumps({"message": f"Invalid query type: {query_type}"}),
             }
 
-        # Merge CORS headers into the response headers for all successful paths
-        response["headers"] = {**response.get("headers", {}), **cors_headers}
-        return response
+        # Format response based on requested format
+        if format_type.lower() == "csv":
+            return format_csv_response(items, cors_headers)
+        else:
+            return format_json_response(items, cors_headers)
 
     except Exception as e:
         logger.error(f"Error querying data: {str(e)}")
         # For error responses, also include CORS headers
         return {
             "statusCode": 500,
-            "headers": cors_headers,  # Apply CORS headers to error response
+            "headers": {**{"Content-Type": "application/json"}, **cors_headers},
             "body": json.dumps({"message": f"Error: {str(e)}"}),
         }
 
 
-def query_by_account(params):
+def query_by_account_items(params):
     account_id = params.get("accountId")
     if not account_id:
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"message": "Missing 'accountId' parameter"}),
-        }
+        raise ValueError("Missing 'accountId' parameter")
 
     response = table.query(
         KeyConditionExpression=Key("payer_account_id").eq(account_id)
     )
-
-    return {
-        "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(
-            {"items": response.get("Items", [])}, cls=DecimalEncoder
-        ),  # Added DecimalEncoder
-    }
+    return response.get("Items", [])
 
 
-def query_by_date(params):
+def query_by_date_items(params):
     date = params.get("date")
     product = params.get("product")
 
     if not date:
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"message": "Missing 'date' parameter"}),
-        }
+        raise ValueError("Missing 'date' parameter")
 
     key_condition = Key("bill_period_start_date").eq(date)
     if product:
@@ -109,35 +100,77 @@ def query_by_date(params):
     response = table.query(
         IndexName="DateProductIndex", KeyConditionExpression=key_condition
     )
-
-    return {
-        "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(
-            {"items": response.get("Items", [])}, cls=DecimalEncoder
-        ),  # Added DecimalEncoder
-    }
+    return response.get("Items", [])
 
 
-def query_by_invoice(params):
+def query_by_invoice_items(params):
     invoice_id = params.get("invoiceId")
 
     if not invoice_id:
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"message": "Missing 'invoiceId' parameter"}),
-        }
+        raise ValueError("Missing 'invoiceId' parameter")
 
     response = table.query(
         IndexName="InvoiceIndex",
         KeyConditionExpression=Key("invoice_id").eq(invoice_id),
     )
+    return response.get("Items", [])
 
+
+def format_json_response(items, cors_headers):
     return {
         "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(
-            {"items": response.get("Items", [])}, cls=DecimalEncoder
-        ),  # Added DecimalEncoder
+        "headers": {**{"Content-Type": "application/json"}, **cors_headers},
+        "body": json.dumps({"items": items}, cls=DecimalEncoder),
+    }
+
+
+def format_csv_response(items, cors_headers):
+    if not items:
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "text/csv",
+                "Content-Disposition": "attachment; filename=billing_data.csv",
+                **cors_headers,
+            },
+            "body": "",
+        }
+
+    # Create CSV in memory
+    output = io.StringIO()
+
+    # Get all unique keys from all items to ensure we include all possible columns
+    all_keys = set()
+    for item in items:
+        all_keys.update(item.keys())
+
+    # Sort keys for consistent column order
+    fieldnames = sorted(list(all_keys))
+
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    # Convert Decimal to float for CSV compatibility
+    for item in items:
+        row = {}
+        for key in fieldnames:
+            value = item.get(key, "")
+            if isinstance(value, Decimal):
+                row[key] = float(value)
+            else:
+                row[key] = value
+        writer.writerow(row)
+
+    csv_content = output.getvalue()
+
+    # API Gateway binary content handling
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "text/csv",
+            "Content-Disposition": "attachment; filename=billing_data.csv",
+            **cors_headers,
+        },
+        "body": csv_content,
+        "isBase64Encoded": False,  # Changed to False since we're returning plain text
     }
