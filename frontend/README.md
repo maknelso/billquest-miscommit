@@ -52,3 +52,10 @@ export default tseslint.config({
   },
 })
 ```
+
+## Package to install
+
+```bash
+npm install d3
+npm install --save-dev @types/d3
+```

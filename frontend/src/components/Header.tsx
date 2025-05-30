@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
-import { getCurrentUser } from '../aws/auth';
-import { useNavigate } from 'react-router-dom';
-import { signOut } from 'aws-amplify/auth';
+import { useState } from 'react';
+// Authentication imports commented out for development
+// import { getCurrentUser } from '../aws/auth';
+// import { useNavigate } from 'react-router-dom';
+// import { signOut } from 'aws-amplify/auth';
 
 function Header() {
-  const [userEmail, setUserEmail] = useState<string>('');
-  const navigate = useNavigate();
+  // For development, hardcode a demo user or leave blank
+  const [userEmail, setUserEmail] = useState<string>('demo@example.com');
+  // const navigate = useNavigate();
 
+  // Authentication useEffect commented out for development
+  /*
   useEffect(() => {
     async function fetchUserInfo() {
       try {
@@ -21,14 +25,18 @@ function Header() {
 
     fetchUserInfo();
   }, []);
+  */
 
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+  // Simplified logout for development
+  const handleLogout = () => {
+    alert('Logout functionality disabled during development');
+    // In production:
+    // try {
+    //   await signOut();
+    //   navigate('/login');
+    // } catch (error) {
+    //   console.error('Error signing out:', error);
+    // }
   };
 
   return (

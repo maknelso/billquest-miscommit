@@ -1,20 +1,26 @@
 import { useState, type FormEvent, useEffect } from 'react';
 import './App.css'; // Keep this import if you still have an App.css file, otherwise remove it
-import { getCurrentUser } from './aws/auth';
-import { useNavigate } from 'react-router-dom';
+// Authentication imports commented out for development
+// import { getCurrentUser } from './aws/auth';
+// import { useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import './components/Header.css';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Authentication state commented out for development
+  // const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // const [isLoading, setIsLoading] = useState<boolean>(true);
   const [payerAccountId, setPayerAccountId] = useState<string>('');
   const [billPeriodStartDate, setBillPeriodStartDate] = useState<string>('');
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiResponse, setApiResponse] = useState<string | null>(null); // New state for API response
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
+  
+  // New state for available invoice IDs
+  const [availableInvoiceIds, setAvailableInvoiceIds] = useState<string[]>([]);
+  const [isLoadingInvoiceIds, setIsLoadingInvoiceIds] = useState<boolean>(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -84,6 +90,74 @@ function App() {
     }
   };
   
+  // Function to fetch available invoice IDs when payer account ID changes
+  const fetchInvoiceIds = async (accountId: string) => {
+    if (!accountId.trim()) return;
+    
+    console.log(`Fetching invoice IDs for account: ${accountId}`);
+    setIsLoadingInvoiceIds(true);
+    setAvailableInvoiceIds([]);
+    
+    // For testing, add some mock invoice IDs if we're in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Adding mock invoice IDs for development testing');
+      setTimeout(() => {
+        const mockIds = [
+          `MOCK-${accountId}-001`,
+          `MOCK-${accountId}-002`,
+          `MOCK-${accountId}-003`
+        ];
+        setAvailableInvoiceIds(mockIds);
+        setIsLoadingInvoiceIds(false);
+      }, 1000);
+      return;
+    }
+    
+    const queryParams = new URLSearchParams();
+    queryParams.append('queryType', 'getInvoiceIds');
+    queryParams.append('accountId', accountId);
+    
+    const apiUrl = `https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query?${queryParams.toString()}`;
+    console.log(`API URL: ${apiUrl}`);
+    
+    try {
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error response: ${errorText}`);
+        throw new Error(`Failed to fetch invoice IDs: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Invoice IDs API response:', data);
+      
+      if (data && data.invoiceIds && Array.isArray(data.invoiceIds)) {
+        console.log(`Found ${data.invoiceIds.length} invoice IDs`);
+        setAvailableInvoiceIds(data.invoiceIds);
+      } else {
+        console.warn('No invoice IDs found in response or invalid format:', data);
+      }
+    } catch (err) {
+      console.error('Error fetching invoice IDs:', err);
+      // Don't show an alert for this background operation
+    } finally {
+      setIsLoadingInvoiceIds(false);
+    }
+  };
+  
+  // Call fetchInvoiceIds when payerAccountId changes
+  useEffect(() => {
+    console.log(`payerAccountId changed to: "${payerAccountId}"`);
+    if (payerAccountId.trim()) {
+      console.log("Calling fetchInvoiceIds...");
+      fetchInvoiceIds(payerAccountId);
+    } else {
+      console.log("Clearing availableInvoiceIds");
+      setAvailableInvoiceIds([]);
+    }
+  }, [payerAccountId]);
+
   const handleDownloadCSV = async () => {
     if (!payerAccountId.trim()) {
       alert('Please submit a query first before downloading CSV');
@@ -134,6 +208,8 @@ function App() {
     }
   };
 
+  // Authentication check commented out for development
+  /*
   useEffect(() => {
     async function checkAuthStatus() {
       try {
@@ -162,6 +238,7 @@ function App() {
   if (!isAuthenticated) {
     return null; // Will redirect in useEffect
   }
+  */
 
   return (
     <div className="app-container">
@@ -195,13 +272,37 @@ function App() {
 
         <div className="form-group">
           <label htmlFor="invoiceId">Invoice ID:</label>
-          <input
-            type="text"
-            id="invoiceId"
-            value={invoiceId}
-            onChange={(e) => setInvoiceId(e.target.value)}
-            placeholder="e.g. EUINFR25-123456"
-          />
+          {isLoadingInvoiceIds ? (
+            <div className="loading-spinner">Loading invoice IDs...</div>
+          ) : availableInvoiceIds.length > 0 ? (
+            <>
+              <select
+                id="invoiceId"
+                value={invoiceId}
+                onChange={(e) => setInvoiceId(e.target.value)}
+              >
+                <option value="">Select an Invoice ID</option>
+                {availableInvoiceIds.map(id => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+              <div className="debug-info">Found {availableInvoiceIds.length} invoice IDs</div>
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                id="invoiceId"
+                value={invoiceId}
+                onChange={(e) => setInvoiceId(e.target.value)}
+                placeholder={payerAccountId ? "No invoice IDs found" : "Enter Payer Account ID first"}
+                disabled={!payerAccountId.trim()}
+              />
+              {payerAccountId.trim() && !isLoadingInvoiceIds && (
+                <div className="debug-info">No invoice IDs found for this account</div>
+              )}
+            </>
+          )}
         </div>
 
         <button type="submit" disabled={isSubmitting}>
