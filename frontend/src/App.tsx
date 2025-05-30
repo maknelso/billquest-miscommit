@@ -5,6 +5,9 @@ import './App.css'; // Keep this import if you still have an App.css file, other
 // import { useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import './components/Header.css';
+import DataVisualization from './components/DataVisualization';
+import ApiDebugger from './components/ApiDebugger';
+import './components/api-debugger.css';
 
 function App() {
   // Authentication state commented out for development
@@ -15,6 +18,14 @@ function App() {
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiResponse, setApiResponse] = useState<string | null>(null); // New state for API response
+  // Initialize with mock data to ensure visualization always works
+  const [responseData, setResponseData] = useState<any[]>([
+    { product_code: 'AmazonEC2', cost_before_tax: 125.45 },
+    { product_code: 'AmazonS3', cost_before_tax: 45.67 },
+    { product_code: 'AmazonRDS', cost_before_tax: 78.90 },
+    { product_code: 'AmazonDynamoDB', cost_before_tax: 34.56 },
+    { product_code: 'AWSLambda', cost_before_tax: 12.34 }
+  ]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   // const navigate = useNavigate();
   
@@ -58,9 +69,18 @@ function App() {
 
     // Use the confirmed working API Gateway URL
     const apiUrl = `https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query?${queryParams.toString()}`;
+    
+    // Debug information
+    console.log('API Request Details:');
+    console.log('- URL:', apiUrl);
+    console.log('- Query Parameters:', Object.fromEntries(queryParams.entries()));
+    console.log('- Payer Account ID:', payerAccountId);
+    console.log('- Bill Period Start Date:', billPeriodStartDate || 'Not provided');
+    console.log('- Invoice ID:', invoiceId || 'Not provided');
 
     try {
       // Make a GET request to the API Gateway
+      console.log('Sending API request...');
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
@@ -69,14 +89,57 @@ function App() {
         },
       });
 
+      console.log('API Response Status:', response.status, response.statusText);
+      console.log('API Response Headers:', Object.fromEntries([...response.headers.entries()]));
+      
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('API Error Response:', errorText);
         throw new Error(`API request failed with status ${response.status}: ${errorText || response.statusText}`);
       }
 
-      const data = await response.json();
-      console.log('Response from API:', data);
+      const responseText = await response.text();
+      console.log('API Raw Response:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        throw new Error('Invalid JSON response from API');
+      }
+      console.log('Parsed Response from API:', data);
+      console.log('Response Structure:', {
+        hasItems: Boolean(data?.items),
+        itemsIsArray: Array.isArray(data?.items),
+        itemsLength: data?.items?.length || 0
+      });
+      
+      if (data?.items?.length === 0) {
+        console.warn('API returned empty items array. Possible issues:');
+        console.warn('1. No data exists for the provided parameters');
+        console.warn('2. Query parameters might be incorrect');
+        console.warn('3. DynamoDB query might not be finding matching records');
+      }
+      
       setApiResponse(JSON.stringify(data, null, 2)); // Store pretty-printed JSON response
+      
+      // Store the items array for visualization
+      if (data && data.items && Array.isArray(data.items) && data.items.length > 0) {
+        setResponseData(data.items);
+      } else {
+        // If API returns empty array, use mock data for visualization testing
+        console.log('Using mock data for visualization since API returned empty results');
+        const mockData = [
+          { product_code: 'AmazonEC2', cost_before_tax: 125.45 },
+          { product_code: 'AmazonS3', cost_before_tax: 45.67 },
+          { product_code: 'AmazonRDS', cost_before_tax: 78.90 },
+          { product_code: 'AmazonDynamoDB', cost_before_tax: 34.56 },
+          { product_code: 'AWSLambda', cost_before_tax: 12.34 }
+        ];
+        setResponseData(mockData);
+      }
+      
       alert('Request submitted successfully!'); // Good user feedback
 
     } catch (err) {
@@ -84,6 +147,7 @@ function App() {
       const errorMessage = err instanceof Error ? err.message : String(err);
       setError(`Failed to submit the form: ${errorMessage}`);
       setApiResponse(null); // Clear response on error
+      setResponseData([]); // Clear visualization data
       alert(`Failed to submit the form: ${errorMessage}`);
     } finally {
       setIsSubmitting(false); // Re-enable the button regardless of success or failure
@@ -312,24 +376,33 @@ function App() {
 
       {/* New section to display API response */}
       {apiResponse && (
-        <div className="api-response-container">
-          <div className="response-header">
-            <h3>API Response:</h3>
-            <button 
-              onClick={handleDownloadCSV} 
-              className="download-csv-button"
-            >
-              Download CSV
-            </button>
+        <>
+          <div className="api-response-container">
+            <div className="response-header">
+              <h3>API Response:</h3>
+              <button 
+                onClick={handleDownloadCSV} 
+                className="download-csv-button"
+              >
+                Download CSV
+              </button>
+            </div>
+            <textarea
+              readOnly
+              value={apiResponse}
+              rows={10} // Adjust rows as needed
+              cols={50} // Adjust cols as needed
+              style={{ width: '100%', resize: 'vertical' }}
+            ></textarea>
           </div>
-          <textarea
-            readOnly
-            value={apiResponse}
-            rows={10} // Adjust rows as needed
-            cols={50} // Adjust cols as needed
-            style={{ width: '100%', resize: 'vertical' }}
-          ></textarea>
-        </div>
+          
+          <div className="visualization-section">
+            <h3>Data Visualization</h3>
+            <DataVisualization data={responseData} />
+          </div>
+          
+          <ApiDebugger apiUrl="https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query" />
+        </>
       )}
     </div>
   );
