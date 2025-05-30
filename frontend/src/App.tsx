@@ -13,22 +13,26 @@ function App() {
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiResponse, setApiResponse] = useState<string | null>(null); // New state for API response
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     setApiResponse(null); // Clear previous response on new submission
+    setIsSubmitting(true); // Disable the button and change text
 
     // Basic validation for payerAccountId
     if (!payerAccountId.trim()) {
       alert('Payer Account ID is required!');
+      setIsSubmitting(false); // Re-enable the button
       return;
     }
 
     // Validation for at least one of the date or invoice ID
     if (!billPeriodStartDate.trim() && !invoiceId.trim()) {
       alert('Please provide either a Bill Period Start Date OR an Invoice ID.');
+      setIsSubmitting(false); // Re-enable the button
       return;
     }
 
@@ -75,6 +79,8 @@ function App() {
       setError(`Failed to submit the form: ${errorMessage}`);
       setApiResponse(null); // Clear response on error
       alert(`Failed to submit the form: ${errorMessage}`);
+    } finally {
+      setIsSubmitting(false); // Re-enable the button regardless of success or failure
     }
   };
   
@@ -198,7 +204,9 @@ function App() {
           />
         </div>
 
-        <button type="submit">Submit</button>
+        <button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Submitting...' : 'Submit'}
+        </button>
       </form>
 
       {/* New section to display API response */}
