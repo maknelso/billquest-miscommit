@@ -14,7 +14,10 @@ const ProductVisualization = ({ data }: ProductVisualizationProps) => {
   const chartRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
-    if (!data || data.length === 0 || !chartRef.current) return;
+    if (!data || data.length === 0 || !chartRef.current) {
+      console.log('No data available for chart visualization');
+      return;
+    }
 
     // Clear any existing chart
     d3.select(chartRef.current).selectAll('*').remove();
@@ -60,13 +63,13 @@ const ProductVisualization = ({ data }: ProductVisualizationProps) => {
     g.append('g')
       .call(d3.axisLeft(y));
 
-    // Add title
+    // Add title with data source indication
     svg.append('text')
       .attr('x', width / 2)
       .attr('y', margin.top / 2)
       .attr('text-anchor', 'middle')
       .style('font-size', '16px')
-      .text(`Product Costs (${data.length} Products)`);
+      .text(`Product Costs from API (${data.length} Products)`);
 
     // Add bars
     g.selectAll('.bar')

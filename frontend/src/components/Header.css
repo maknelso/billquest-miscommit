@@ -21,6 +21,31 @@
   color: #fff;
 }
 
+.main-nav {
+  margin-left: 2rem;
+  flex-grow: 1;
+}
+
+.main-nav ul {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 1.5rem;
+}
+
+.main-nav a {
+  color: white;
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+  position: relative;
+}
+
+.main-nav a:hover {
+  color: #ff9900;
+}
+
 .user-info {
   display: flex;
   flex-direction: column;

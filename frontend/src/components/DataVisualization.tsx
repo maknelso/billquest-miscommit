@@ -32,6 +32,7 @@ const DataVisualization = ({ data }: DataVisualizationProps) => {
       <div className="visualization-container">
         <p>No product data available for visualization.</p>
         <p>Try using a different Payer Account ID or Invoice ID.</p>
+        <p>Use the API Debugger to check for available data in the database.</p>
       </div>
     );
   }

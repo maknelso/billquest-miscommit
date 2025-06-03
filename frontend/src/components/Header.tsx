@@ -43,6 +43,12 @@ function Header() {
     <header className="app-header">
       <div className="header-content">
         <h1>BillQuest</h1>
+        <nav className="main-nav">
+          <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+          </ul>
+        </nav>
         {userEmail && (
           <div className="user-info">
             <span className="user-email">{userEmail}</span>

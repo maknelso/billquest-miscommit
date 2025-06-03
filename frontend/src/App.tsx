@@ -18,18 +18,12 @@ function App() {
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiResponse, setApiResponse] = useState<string | null>(null); // New state for API response
-  // Initialize with mock data to ensure visualization always works
-  const [responseData, setResponseData] = useState<any[]>([
-    { product_code: 'AmazonEC2', cost_before_tax: 125.45 },
-    { product_code: 'AmazonS3', cost_before_tax: 45.67 },
-    { product_code: 'AmazonRDS', cost_before_tax: 78.90 },
-    { product_code: 'AmazonDynamoDB', cost_before_tax: 34.56 },
-    { product_code: 'AWSLambda', cost_before_tax: 12.34 }
-  ]);
+  // Initialize with empty array - will be populated from API response
+  const [responseData, setResponseData] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   // const navigate = useNavigate();
   
-  // New state for available invoice IDs
+  // State for available invoice IDs from API
   const [availableInvoiceIds, setAvailableInvoiceIds] = useState<string[]>([]);
   const [isLoadingInvoiceIds, setIsLoadingInvoiceIds] = useState<boolean>(false);
 
@@ -37,6 +31,7 @@ function App() {
     event.preventDefault();
     setError(null);
     setApiResponse(null); // Clear previous response on new submission
+    setResponseData([]); // Clear previous visualization data
     setIsSubmitting(true); // Disable the button and change text
 
     // Basic validation for payerAccountId
@@ -120,24 +115,18 @@ function App() {
         console.warn('1. No data exists for the provided parameters');
         console.warn('2. Query parameters might be incorrect');
         console.warn('3. DynamoDB query might not be finding matching records');
+        alert('No data found for the provided parameters. Please try different search criteria or use the API Debugger to check available data.');
       }
       
       setApiResponse(JSON.stringify(data, null, 2)); // Store pretty-printed JSON response
       
       // Store the items array for visualization
-      if (data && data.items && Array.isArray(data.items) && data.items.length > 0) {
+      if (data && data.items && Array.isArray(data.items)) {
         setResponseData(data.items);
       } else {
-        // If API returns empty array, use mock data for visualization testing
-        console.log('Using mock data for visualization since API returned empty results');
-        const mockData = [
-          { product_code: 'AmazonEC2', cost_before_tax: 125.45 },
-          { product_code: 'AmazonS3', cost_before_tax: 45.67 },
-          { product_code: 'AmazonRDS', cost_before_tax: 78.90 },
-          { product_code: 'AmazonDynamoDB', cost_before_tax: 34.56 },
-          { product_code: 'AWSLambda', cost_before_tax: 12.34 }
-        ];
-        setResponseData(mockData);
+        // If API returns empty or invalid data, set empty array
+        console.log('API returned empty or invalid results');
+        setResponseData([]);
       }
       
       alert('Request submitted successfully!'); // Good user feedback
@@ -161,21 +150,6 @@ function App() {
     console.log(`Fetching invoice IDs for account: ${accountId}`);
     setIsLoadingInvoiceIds(true);
     setAvailableInvoiceIds([]);
-    
-    // For testing, add some mock invoice IDs if we're in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Adding mock invoice IDs for development testing');
-      setTimeout(() => {
-        const mockIds = [
-          `MOCK-${accountId}-001`,
-          `MOCK-${accountId}-002`,
-          `MOCK-${accountId}-003`
-        ];
-        setAvailableInvoiceIds(mockIds);
-        setIsLoadingInvoiceIds(false);
-      }, 1000);
-      return;
-    }
     
     const queryParams = new URLSearchParams();
     queryParams.append('queryType', 'getInvoiceIds');
@@ -307,102 +281,128 @@ function App() {
   return (
     <div className="app-container">
       <Header />
-      <form onSubmit={handleSubmit} className="billing-form">
-        <h2>Bill Information Request</h2>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <div className="form-group">
-          <label htmlFor="payerAccountId">Payer Account ID: (required)</label>
-          <input
-            type="text"
-            id="payerAccountId"
-            value={payerAccountId}
-            onChange={(e) => setPayerAccountId(e.target.value)}
-            required
-          />
-        </div>
-
-        <p className="choose-one-text">Choose at least ONE of the below:</p>
-
-        <div className="form-group">
-          <label htmlFor="billPeriodStartDate">Bill Period Start Date:</label>
-          <input
-            type="text"
-            id="billPeriodStartDate"
-            value={billPeriodStartDate}
-            onChange={(e) => setBillPeriodStartDate(e.target.value)}
-            placeholder="e.g. 2023-01"
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="invoiceId">Invoice ID:</label>
-          {isLoadingInvoiceIds ? (
-            <div className="loading-spinner">Loading invoice IDs...</div>
-          ) : availableInvoiceIds.length > 0 ? (
-            <>
-              <select
-                id="invoiceId"
-                value={invoiceId}
-                onChange={(e) => setInvoiceId(e.target.value)}
-              >
-                <option value="">Select an Invoice ID</option>
-                {availableInvoiceIds.map(id => (
-                  <option key={id} value={id}>{id}</option>
-                ))}
-              </select>
-              <div className="debug-info">Found {availableInvoiceIds.length} invoice IDs</div>
-            </>
-          ) : (
-            <>
+      
+      {/* Three-column layout */}
+      <div className="content-container">
+        {/* Left panel - Bill Information Request Form */}
+        <div className="left-panel">
+          <form onSubmit={handleSubmit} className="billing-form">
+            <h2>Bill Information Request</h2>
+            {error && <p style={{ color: 'red' }}>{error}</p>}
+            <div className="form-group">
+              <label htmlFor="payerAccountId">Payer Account ID: (required)</label>
               <input
                 type="text"
-                id="invoiceId"
-                value={invoiceId}
-                onChange={(e) => setInvoiceId(e.target.value)}
-                placeholder={payerAccountId ? "No invoice IDs found" : "Enter Payer Account ID first"}
-                disabled={!payerAccountId.trim()}
+                id="payerAccountId"
+                value={payerAccountId}
+                onChange={(e) => setPayerAccountId(e.target.value)}
+                required
               />
-              {payerAccountId.trim() && !isLoadingInvoiceIds && (
-                <div className="debug-info">No invoice IDs found for this account</div>
+            </div>
+
+            <p className="choose-one-text">Choose at least ONE of the below:</p>
+
+            <div className="form-group">
+              <label htmlFor="billPeriodStartDate">Bill Period Start Date:</label>
+              <input
+                type="text"
+                id="billPeriodStartDate"
+                value={billPeriodStartDate}
+                onChange={(e) => setBillPeriodStartDate(e.target.value)}
+                placeholder="e.g. 2023-01"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="invoiceId">Invoice ID:</label>
+              {isLoadingInvoiceIds ? (
+                <div className="loading-spinner">Loading invoice IDs...</div>
+              ) : availableInvoiceIds.length > 0 ? (
+                <>
+                  <select
+                    id="invoiceId"
+                    value={invoiceId}
+                    onChange={(e) => setInvoiceId(e.target.value)}
+                  >
+                    <option value="">Select an Invoice ID</option>
+                    {availableInvoiceIds.map(id => (
+                      <option key={id} value={id}>{id}</option>
+                    ))}
+                  </select>
+                  <div className="debug-info">Found {availableInvoiceIds.length} invoice IDs</div>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    id="invoiceId"
+                    value={invoiceId}
+                    onChange={(e) => setInvoiceId(e.target.value)}
+                    placeholder={payerAccountId ? "No invoice IDs found" : "Enter Payer Account ID first"}
+                    disabled={!payerAccountId.trim()}
+                  />
+                  {payerAccountId.trim() && !isLoadingInvoiceIds && (
+                    <div className="debug-info">No invoice IDs found for this account</div>
+                  )}
+                </>
               )}
-            </>
+            </div>
+
+            <button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Submitting...' : 'Submit'}
+            </button>
+          </form>
+        </div>
+        
+        {/* Center panel - Data Visualization */}
+        <div className="center-panel">
+          {apiResponse ? (
+            <div className="visualization-section">
+              <h3>Data Visualization</h3>
+              <DataVisualization data={responseData} />
+            </div>
+          ) : (
+            <div className="visualization-section">
+              <h3>Data Visualization</h3>
+              <p>Submit a request to see visualization</p>
+            </div>
           )}
         </div>
-
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Submitting...' : 'Submit'}
-        </button>
-      </form>
-
-      {/* New section to display API response */}
+        
+        {/* Right panel - Download CSV */}
+        <div className="right-panel">
+          <div className="right-panel-container">
+            <div className="right-panel-title">Actions</div>
+            <button 
+              onClick={handleDownloadCSV} 
+              className="download-csv-button"
+              disabled={!apiResponse}
+            >
+              Download CSV
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* API Response section (below the three columns) */}
       {apiResponse && (
-        <>
-          <div className="api-response-container">
-            <div className="response-header">
-              <h3>API Response:</h3>
-              <button 
-                onClick={handleDownloadCSV} 
-                className="download-csv-button"
-              >
-                Download CSV
-              </button>
-            </div>
-            <textarea
-              readOnly
-              value={apiResponse}
-              rows={10} // Adjust rows as needed
-              cols={50} // Adjust cols as needed
-              style={{ width: '100%', resize: 'vertical' }}
-            ></textarea>
+        <div className="api-response-container">
+          <div className="response-header">
+            <h3>API Response:</h3>
           </div>
-          
-          <div className="visualization-section">
-            <h3>Data Visualization</h3>
-            <DataVisualization data={responseData} />
-          </div>
-          
-          <ApiDebugger apiUrl="https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query" />
-        </>
+          <textarea
+            readOnly
+            value={apiResponse}
+            rows={5} // Reduced rows since we have more content above
+            cols={50}
+            style={{ width: '100%', resize: 'vertical' }}
+          ></textarea>
+        </div>
+      )}
+      
+      {/* API Debugger (only shown when there's a response) */}
+      {apiResponse && (
+        <ApiDebugger apiUrl="https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query" />
       )}
     </div>
   );
