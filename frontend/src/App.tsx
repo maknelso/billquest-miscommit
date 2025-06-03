@@ -9,13 +9,18 @@ import DataVisualization from './components/DataVisualization';
 import ApiDebugger from './components/ApiDebugger';
 import './components/api-debugger.css';
 
+// Define report types
+type ReportType = 'commitment' | 'trn' | 'discount';
+
 function App() {
   // Authentication state commented out for development
   // const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   // const [isLoading, setIsLoading] = useState<boolean>(true);
   const [payerAccountId, setPayerAccountId] = useState<string>('');
   const [billPeriodStartDate, setBillPeriodStartDate] = useState<string>('');
+  const [reportType, setReportType] = useState<ReportType>('commitment');
   const [invoiceId, setInvoiceId] = useState<string>('');
+  const [productCode, setProductCode] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiResponse, setApiResponse] = useState<string | null>(null); // New state for API response
   // Initialize with empty array - will be populated from API response
@@ -41,25 +46,47 @@ function App() {
       return;
     }
 
-    // Validation for at least one of the date or invoice ID
-    if (!billPeriodStartDate.trim() && !invoiceId.trim()) {
-      alert('Please provide either a Bill Period Start Date OR an Invoice ID.');
-      setIsSubmitting(false); // Re-enable the button
-      return;
+    // Validation based on report type
+    if (reportType === 'discount') {
+      // For Discount General Report, validate Invoice ID and Product Code
+      if (!invoiceId.trim()) {
+        alert('Invoice ID is required for Discount General Report.');
+        setIsSubmitting(false);
+        return;
+      }
+      if (!productCode.trim()) {
+        alert('Product Code is required for Discount General Report.');
+        setIsSubmitting(false);
+        return;
+      }
+    } else {
+      // For other report types, validate Bill Period Start Date
+      if (!billPeriodStartDate.trim()) {
+        alert('Bill Period Start Date is required for this report type.');
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     const queryParams = new URLSearchParams();
-    // Correctly map your form inputs to the Lambda's expected query parameters
-    queryParams.append('queryType', 'account'); // Assuming 'account' is the queryType for this form
-    queryParams.append('accountId', payerAccountId); // Use payerAccountId as accountId for Lambda
-
-    // Only append one of the date or invoice ID, based on which one is provided
-    if (billPeriodStartDate.trim()) {
-      // Assuming your Lambda expects 'billPeriodStartDate' as a parameter
-      queryParams.append('billPeriodStartDate', billPeriodStartDate);
-    } else if (invoiceId.trim()) {
-      // Assuming your Lambda expects 'invoiceId' as a parameter
+    // Set query parameters based on report type
+    queryParams.append('accountId', payerAccountId); // Always include account ID
+    
+    if (reportType === 'discount') {
+      // For Discount General Report, use invoice query type with product code
+      queryParams.append('queryType', 'invoice');
       queryParams.append('invoiceId', invoiceId);
+      queryParams.append('productCode', productCode);
+    } else if (reportType === 'commitment') {
+      // For Commitment Report
+      queryParams.append('queryType', 'account');
+      queryParams.append('billPeriodStartDate', billPeriodStartDate);
+      queryParams.append('reportType', 'commitment');
+    } else if (reportType === 'trn') {
+      // For TRN Report
+      queryParams.append('queryType', 'account');
+      queryParams.append('billPeriodStartDate', billPeriodStartDate);
+      queryParams.append('reportType', 'trn');
     }
 
     // Use the confirmed working API Gateway URL
@@ -70,8 +97,10 @@ function App() {
     console.log('- URL:', apiUrl);
     console.log('- Query Parameters:', Object.fromEntries(queryParams.entries()));
     console.log('- Payer Account ID:', payerAccountId);
+    console.log('- Report Type:', reportType);
     console.log('- Bill Period Start Date:', billPeriodStartDate || 'Not provided');
     console.log('- Invoice ID:', invoiceId || 'Not provided');
+    console.log('- Product Code:', productCode || 'Not provided');
 
     try {
       // Make a GET request to the API Gateway
@@ -184,17 +213,17 @@ function App() {
     }
   };
   
-  // Call fetchInvoiceIds when payerAccountId changes
+  // Call fetchInvoiceIds when payerAccountId changes or report type changes
   useEffect(() => {
-    console.log(`payerAccountId changed to: "${payerAccountId}"`);
-    if (payerAccountId.trim()) {
-      console.log("Calling fetchInvoiceIds...");
+    console.log(`payerAccountId changed to: "${payerAccountId}" or reportType changed to: "${reportType}"`);
+    if (payerAccountId.trim() && reportType === 'discount') {
+      console.log("Calling fetchInvoiceIds for Discount General Report...");
       fetchInvoiceIds(payerAccountId);
     } else {
       console.log("Clearing availableInvoiceIds");
       setAvailableInvoiceIds([]);
     }
-  }, [payerAccountId]);
+  }, [payerAccountId, reportType]);
 
   const handleDownloadCSV = async () => {
     if (!payerAccountId.trim()) {
@@ -203,14 +232,22 @@ function App() {
     }
     
     const queryParams = new URLSearchParams();
-    queryParams.append('queryType', 'account');
     queryParams.append('accountId', payerAccountId);
     queryParams.append('format', 'csv'); // Request CSV format
     
-    if (billPeriodStartDate.trim()) {
-      queryParams.append('billPeriodStartDate', billPeriodStartDate);
-    } else if (invoiceId.trim()) {
+    // Set query parameters based on report type
+    if (reportType === 'discount') {
+      queryParams.append('queryType', 'invoice');
       queryParams.append('invoiceId', invoiceId);
+      queryParams.append('productCode', productCode);
+    } else if (reportType === 'commitment') {
+      queryParams.append('queryType', 'account');
+      queryParams.append('billPeriodStartDate', billPeriodStartDate);
+      queryParams.append('reportType', 'commitment');
+    } else if (reportType === 'trn') {
+      queryParams.append('queryType', 'account');
+      queryParams.append('billPeriodStartDate', billPeriodStartDate);
+      queryParams.append('reportType', 'trn');
     }
     
     const apiUrl = `https://6f3ntv3qq8.execute-api.us-east-1.amazonaws.com/prod/query?${queryParams.toString()}`;
@@ -300,53 +337,94 @@ function App() {
               />
             </div>
 
-            <p className="choose-one-text">Choose at least ONE of the below:</p>
-
             <div className="form-group">
-              <label htmlFor="billPeriodStartDate">Bill Period Start Date:</label>
-              <input
-                type="text"
-                id="billPeriodStartDate"
-                value={billPeriodStartDate}
-                onChange={(e) => setBillPeriodStartDate(e.target.value)}
-                placeholder="e.g. 2023-01"
-              />
+              <label htmlFor="reportType">Report Type:</label>
+              <select
+                id="reportType"
+                value={reportType}
+                onChange={(e) => {
+                  setReportType(e.target.value as ReportType);
+                  // Clear fields when changing report type
+                  if (e.target.value === 'discount') {
+                    setBillPeriodStartDate('');
+                  } else {
+                    setInvoiceId('');
+                    setProductCode('');
+                  }
+                }}
+              >
+                <option value="commitment">Commitment Report</option>
+                <option value="trn">TRN Report</option>
+                <option value="discount">Discount General Report</option>
+              </select>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="invoiceId">Invoice ID:</label>
-              {isLoadingInvoiceIds ? (
-                <div className="loading-spinner">Loading invoice IDs...</div>
-              ) : availableInvoiceIds.length > 0 ? (
-                <>
-                  <select
-                    id="invoiceId"
-                    value={invoiceId}
-                    onChange={(e) => setInvoiceId(e.target.value)}
-                  >
-                    <option value="">Select an Invoice ID</option>
-                    {availableInvoiceIds.map(id => (
-                      <option key={id} value={id}>{id}</option>
-                    ))}
-                  </select>
-                  <div className="debug-info">Found {availableInvoiceIds.length} invoice IDs</div>
-                </>
-              ) : (
-                <>
+            {reportType !== 'discount' && (
+              <div className="form-group">
+                <label htmlFor="billPeriodStartDate">Bill Period Start Date:</label>
+                <input
+                  type="text"
+                  id="billPeriodStartDate"
+                  value={billPeriodStartDate}
+                  onChange={(e) => setBillPeriodStartDate(e.target.value)}
+                  placeholder="e.g. 2023-01"
+                  required
+                />
+              </div>
+            )}
+
+
+
+            {reportType === 'discount' && (
+              <>
+                <div className="form-group">
+                  <label htmlFor="invoiceId">Invoice ID:</label>
+                  {isLoadingInvoiceIds ? (
+                    <div className="loading-spinner">Loading invoice IDs...</div>
+                  ) : availableInvoiceIds.length > 0 ? (
+                    <>
+                      <select
+                        id="invoiceId"
+                        value={invoiceId}
+                        onChange={(e) => setInvoiceId(e.target.value)}
+                      >
+                        <option value="">Select an Invoice ID</option>
+                        {availableInvoiceIds.map(id => (
+                          <option key={id} value={id}>{id}</option>
+                        ))}
+                      </select>
+                      <div className="debug-info">Found {availableInvoiceIds.length} invoice IDs</div>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        id="invoiceId"
+                        value={invoiceId}
+                        onChange={(e) => setInvoiceId(e.target.value)}
+                        placeholder={payerAccountId ? "No invoice IDs found" : "Enter Payer Account ID first"}
+                        disabled={!payerAccountId.trim()}
+                      />
+                      {payerAccountId.trim() && !isLoadingInvoiceIds && (
+                        <div className="debug-info">No invoice IDs found for this account</div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="productCode">Product Code:</label>
                   <input
                     type="text"
-                    id="invoiceId"
-                    value={invoiceId}
-                    onChange={(e) => setInvoiceId(e.target.value)}
-                    placeholder={payerAccountId ? "No invoice IDs found" : "Enter Payer Account ID first"}
-                    disabled={!payerAccountId.trim()}
+                    id="productCode"
+                    value={productCode}
+                    onChange={(e) => setProductCode(e.target.value)}
+                    placeholder="e.g. AmazonEC2"
                   />
-                  {payerAccountId.trim() && !isLoadingInvoiceIds && (
-                    <div className="debug-info">No invoice IDs found for this account</div>
-                  )}
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
+            
 
             <button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Submitting...' : 'Submit'}
@@ -358,7 +436,7 @@ function App() {
         <div className="center-panel">
           {apiResponse ? (
             <div className="visualization-section">
-              <h3>Data Visualization</h3>
+              <h3>{reportType === 'discount' ? 'Discount General Report' : reportType === 'commitment' ? 'Commitment Report' : 'TRN Report'} Visualization</h3>
               <DataVisualization data={responseData} />
             </div>
           ) : (

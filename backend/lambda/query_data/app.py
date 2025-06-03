@@ -95,6 +95,10 @@ def lambda_handler(event, context):
 
         # Different query types
         if query_type == "account":
+            # Check if there's a specific report type
+            report_type = query_params.get("reportType")
+            if report_type:
+                logger.info(f"Processing request for report type: {report_type}")
             items = query_by_account_items(query_params)
         elif query_type == "date":
             items = query_by_date_items(query_params)
@@ -198,15 +202,26 @@ def query_by_date_items(params):
 
 def query_by_invoice_items(params):
     invoice_id = params.get("invoiceId")
+    product_code = params.get("productCode")
 
     if not invoice_id:
         raise ValueError("Missing 'invoiceId' parameter")
 
+    # Basic query by invoice ID
     response = table.query(
         IndexName="InvoiceIndex",
         KeyConditionExpression=Key("invoice_id").eq(invoice_id),
     )
-    return response.get("Items", [])
+    items = response.get("Items", [])
+    
+    # If product code is provided, filter the results
+    if product_code and items:
+        logger.info(f"Filtering results by product_code: {product_code}")
+        filtered_items = [item for item in items if item.get("product_code") == product_code]
+        logger.info(f"Filtered from {len(items)} to {len(filtered_items)} items")
+        return filtered_items
+    
+    return items
 
 
 def format_json_response(items, cors_headers):
