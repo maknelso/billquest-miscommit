@@ -83,34 +83,45 @@ def query_by_account_items(params):
     if not account_id:
         raise ValueError("Missing 'accountId' parameter")
 
-    # If invoice ID is provided, use that for more specific filtering
-    if invoice_id:
-        logger.info(f"Querying by account ID {account_id} and invoice ID {invoice_id}")
-        response = table.query(
-            IndexName="InvoiceIndex",
-            KeyConditionExpression=Key("invoice_id").eq(invoice_id),
-            FilterExpression=Attr("payer_account_id").eq(account_id),
-        )
-    # If bill period start date is provided, use DateProductIndex
-    elif bill_period_start_date:
-        logger.info(
-            f"Querying by account ID {account_id} and bill period {bill_period_start_date}"
-        )
-        response = table.query(
-            IndexName="DateProductIndex",
-            KeyConditionExpression=Key("bill_period_start_date").eq(
-                bill_period_start_date
-            ),
-            FilterExpression=Attr("payer_account_id").eq(account_id),
-        )
-    # Otherwise just query by account ID
-    else:
-        logger.info(f"Querying by account ID {account_id} only")
-        response = table.query(
-            KeyConditionExpression=Key("payer_account_id").eq(account_id)
-        )
+    # Handle multiple account IDs (comma-separated)
+    account_ids = [aid.strip() for aid in account_id.split(",")]
+    logger.info(f"Processing {len(account_ids)} account IDs: {account_ids}")
 
-    return response.get("Items", [])
+    all_items = []
+
+    # Process each account ID
+    for aid in account_ids:
+        # If invoice ID is provided, use that for more specific filtering
+        if invoice_id:
+            logger.info(f"Querying by account ID {aid} and invoice ID {invoice_id}")
+            response = table.query(
+                IndexName="InvoiceIndex",
+                KeyConditionExpression=Key("invoice_id").eq(invoice_id),
+                FilterExpression=Attr("payer_account_id").eq(aid),
+            )
+        # If bill period start date is provided, use DateProductIndex
+        elif bill_period_start_date:
+            logger.info(
+                f"Querying by account ID {aid} and bill period {bill_period_start_date}"
+            )
+            response = table.query(
+                IndexName="DateProductIndex",
+                KeyConditionExpression=Key("bill_period_start_date").eq(
+                    bill_period_start_date
+                ),
+                FilterExpression=Attr("payer_account_id").eq(aid),
+            )
+        # Otherwise just query by account ID
+        else:
+            logger.info(f"Querying by account ID {aid} only")
+            response = table.query(
+                KeyConditionExpression=Key("payer_account_id").eq(aid)
+            )
+
+        # Add items from this account ID to the result
+        all_items.extend(response.get("Items", []))
+
+    return all_items
 
 
 def query_by_date_items(params):
@@ -143,11 +154,84 @@ def query_by_invoice_items(params):
     return response.get("Items", [])
 
 
+def generate_filename(items):
+    """Generate a descriptive filename for the CSV download based on the data"""
+    if not items:
+        return "billing_data.csv"
+
+    # Get unique account IDs
+    account_ids = set()
+    invoice_ids = set()
+    dates = set()
+
+    for item in items:
+        if "payer_account_id" in item:
+            account_ids.add(item["payer_account_id"])
+        if "invoice_id" in item:
+            invoice_ids.add(item["invoice_id"])
+        if "bill_period_start_date" in item:
+            dates.add(item["bill_period_start_date"])
+
+    # Create filename based on available data
+    if len(account_ids) == 1:
+        account_id = list(account_ids)[0]
+        if len(dates) == 1:
+            date = list(dates)[0]
+            return f"billing_{account_id}_{date}.csv"
+        elif len(invoice_ids) == 1:
+            invoice_id = list(invoice_ids)[0]
+            return f"billing_{account_id}_{invoice_id}.csv"
+        else:
+            return f"billing_{account_id}.csv"
+    else:
+        return f"billing_data_multiple_accounts.csv"
+
+
 def format_json_response(items, cors_headers):
     return {
         "statusCode": 200,
         "headers": {**{"Content-Type": "application/json"}, **cors_headers},
-        "body": json.dumps({"items": items}, cls=DecimalEncoder),
+        "body": json.dumps(
+            {"items": items, "count": len(items), "summary": summarize_data(items)},
+            cls=DecimalEncoder,
+        ),
+    }
+
+
+def summarize_data(items):
+    """Generate a summary of the data for the JSON response"""
+    if not items:
+        return {}
+
+    # Count unique values
+    account_ids = set()
+    invoice_ids = set()
+    dates = set()
+    products = set()
+
+    # Track totals
+    total_cost = 0
+
+    for item in items:
+        if "payer_account_id" in item:
+            account_ids.add(item["payer_account_id"])
+        if "invoice_id" in item:
+            invoice_ids.add(item["invoice_id"])
+        if "bill_period_start_date" in item:
+            dates.add(item["bill_period_start_date"])
+        if "product_code" in item:
+            products.add(item["product_code"])
+        if "cost_before_tax" in item and isinstance(
+            item["cost_before_tax"], (int, float, Decimal)
+        ):
+            total_cost += float(item["cost_before_tax"])
+
+    return {
+        "unique_accounts": len(account_ids),
+        "unique_invoices": len(invoice_ids),
+        "unique_dates": len(dates),
+        "unique_products": len(products),
+        "total_cost": round(total_cost, 2),
     }
 
 
@@ -171,8 +255,24 @@ def format_csv_response(items, cors_headers):
     for item in items:
         all_keys.update(item.keys())
 
-    # Sort keys for consistent column order
-    fieldnames = sorted(list(all_keys))
+    # Define important columns to appear first in the CSV
+    priority_columns = [
+        "payer_account_id",
+        "invoice_id",
+        "product_code",
+        "bill_period_start_date",
+        "cost_before_tax",
+    ]
+
+    # Sort keys with priority columns first, then alphabetically for the rest
+    fieldnames = []
+    for col in priority_columns:
+        if col in all_keys:
+            fieldnames.append(col)
+            all_keys.remove(col)
+
+    # Add remaining columns in alphabetical order
+    fieldnames.extend(sorted(list(all_keys)))
 
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
@@ -190,12 +290,15 @@ def format_csv_response(items, cors_headers):
 
     csv_content = output.getvalue()
 
+    # Generate a more descriptive filename based on query parameters
+    filename = generate_filename(items)
+
     # API Gateway binary content handling
     return {
         "statusCode": 200,
         "headers": {
             "Content-Type": "text/csv",
-            "Content-Disposition": "attachment; filename=billing_data.csv",
+            "Content-Disposition": f"attachment; filename={filename}",
             **cors_headers,
         },
         "body": csv_content,

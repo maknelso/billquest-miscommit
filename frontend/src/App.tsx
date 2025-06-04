@@ -90,7 +90,7 @@ function App() {
   };
   
   const handleDownloadCSV = async () => {
-    if (!payerAccountId.trim()) {
+    if (payerAccountId.length === 0) {
       alert('Please submit a query first before downloading CSV');
       return;
     }
