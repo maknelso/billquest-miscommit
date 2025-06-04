@@ -351,3 +351,66 @@ class BillQuestMiscommitStack(Stack):
             value=f"{user_pool.user_pool_id}.auth.{Stack.of(self).region}.amazoncognito.com",
             description="The domain for the Cognito hosted UI.",
         )
+
+        # --- 13. User Info DynamoDB Table ---
+        # This table will store user information including email and payer_account_ids (list)
+        user_info_table = dynamodb.Table(
+            self,
+            "UserInfoTable",
+            table_name="edp_miscommit_user_info_table",
+            partition_key=dynamodb.Attribute(
+                name="email", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
+        )
+
+        # --- 14. S3 Bucket for User Info CSV Uploads ---
+        # Users will upload their user info CSV files here
+        user_info_bucket = s3.Bucket(
+            self,
+            "UserInfoBucket",
+            bucket_name="billquestmiscommitstack-user-access-bucket-nelmak",
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            auto_delete_objects=False,
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # --- 15. Lambda Function for Processing User Info CSV ---
+        # This function is triggered when a new file is uploaded to the user info bucket
+        update_user_info_lambda = lambda_.Function(
+            self,
+            "UpdateUserInfoLambda",
+            function_name=f"{stack_prefix}-UpdateUserInfoLambda-nelmak",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="app.lambda_handler",
+            code=lambda_.Code.from_asset("./backend/lambda/update_user_info"),
+            timeout=Duration.seconds(60),
+            environment={"TABLE_NAME": user_info_table.table_name},
+        )
+
+        # Grant the Lambda necessary permissions
+        user_info_bucket.grant_read(update_user_info_lambda)
+        user_info_table.grant_write_data(update_user_info_lambda)
+
+        # --- 16. S3 Event Notification to trigger Update User Info Lambda ---
+        # Configures the S3 bucket to invoke the Lambda when new objects are created
+        user_info_bucket.add_event_notification(
+            s3.EventType.OBJECT_CREATED,
+            s3n.LambdaDestination(update_user_info_lambda),
+        )
+
+        # Add outputs for the new resources
+        CfnOutput(
+            self,
+            "UserInfoBucketName",
+            value=user_info_bucket.bucket_name,
+            description="The S3 bucket for user info CSV uploads.",
+        )
+        CfnOutput(
+            self,
+            "UserInfoTableName",
+            value=user_info_table.table_name,
+            description="The DynamoDB table for user information.",
+        )
