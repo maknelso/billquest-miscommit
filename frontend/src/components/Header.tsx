@@ -11,8 +11,11 @@ function Header() {
     async function fetchUserInfo() {
       try {
         const user = await getCurrentUser();
-        if (user && user.signInDetails?.loginId) {
-          setUserEmail(user.signInDetails.loginId);
+        if (user) {
+          // Use username + domain to form complete email address
+          const username = user.username || '';
+          const email = username.includes('@') ? username : `${username}@amazon.com`;
+          setUserEmail(email);
         }
       } catch (error) {
         console.error('Error fetching user info:', error);

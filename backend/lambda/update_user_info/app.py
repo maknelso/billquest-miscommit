@@ -22,7 +22,8 @@ def lambda_handler(event, context):
     """
     Lambda function that processes CSV files uploaded to S3 and updates DynamoDB.
     The CSV should contain email and payer_account_id columns.
-    One email can be associated with multiple payer_account_ids (comma-separated).
+    One email can be associated with multiple payer_account_ids (semicolon-separated).
+    Each new file upload will overwrite existing entries with the same email.
     """
     logger.info(f"Received event: {json.dumps(event)}")
 
@@ -66,8 +67,8 @@ def lambda_handler(event, context):
                 logger.warning(f"Skipping row with empty values: {clean_row}")
                 continue
 
-            # Split comma-separated payer_account_ids
-            payer_account_ids = [id.strip() for id in payer_account_ids_str.split(",")]
+            # Split semicolon-separated payer_account_ids
+            payer_account_ids = [id.strip() for id in payer_account_ids_str.split(";")]
 
             # Update DynamoDB - store as a list of account IDs
             table.put_item(

@@ -414,3 +414,63 @@ class BillQuestMiscommitStack(Stack):
             value=user_info_table.table_name,
             description="The DynamoDB table for user information.",
         )
+
+        # --- 17. Lambda Function for Getting User Accounts ---
+        # This function retrieves payer_account_ids associated with an email
+        get_user_accounts_lambda = lambda_.Function(
+            self,
+            "GetUserAccountsLambda",
+            function_name=f"{stack_prefix}-GetUserAccountsLambda-nelmak",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="app.lambda_handler",
+            code=lambda_.Code.from_asset("./backend/lambda/get_user_accounts"),
+            timeout=Duration.seconds(30),
+            environment={"TABLE_NAME": user_info_table.table_name},
+        )
+
+        # Grant the Lambda necessary permissions to read from the user info table
+        user_info_table.grant_read_data(get_user_accounts_lambda)
+
+        # --- 18. API Gateway for User Access ---
+        # Creates a REST API endpoint for user account access
+        user_access_api = apigw.RestApi(
+            self,
+            "BillQuestUserAccessApi",
+            rest_api_name="BillQuestAPIGatewayUserAccessnelmak",
+            description="API for retrieving user account information",
+            default_cors_preflight_options=apigw.CorsOptions(
+                allow_origins=apigw.Cors.ALL_ORIGINS,
+                allow_methods=["GET", "OPTIONS"],
+                allow_headers=[
+                    "Content-Type",
+                    "X-Amz-Date",
+                    "Authorization",
+                    "X-Api-Key",
+                    "X-Amz-Security-Token",
+                ],
+            ),
+        )
+
+        # Create an authorizer for the user access API using the same Cognito User Pool
+        user_access_auth = apigw.CognitoUserPoolsAuthorizer(
+            self,
+            "UserAccessAuthorizer",
+            cognito_user_pools=[user_pool],
+        )
+
+        # Add a '/user-accounts' resource and integrate it with the Get User Accounts Lambda
+        user_accounts_resource = user_access_api.root.add_resource("user-accounts")
+        user_accounts_resource.add_method(
+            "GET",
+            apigw.LambdaIntegration(get_user_accounts_lambda),
+            authorizer=user_access_auth,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
+        # Add output for the User Access API endpoint
+        CfnOutput(
+            self,
+            "UserAccessApiEndpoint",
+            value=f"{user_access_api.url}user-accounts",
+            description="The API endpoint for retrieving user account information.",
+        )

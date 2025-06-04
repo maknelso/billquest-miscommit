@@ -1,6 +1,7 @@
 import { useState, type FormEvent, useEffect } from 'react';
 import './App.css'; // Keep this import if you still have an App.css file, otherwise remove it
 import { getCurrentUser } from './aws/auth';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import './components/Header.css';
@@ -8,7 +9,11 @@ import './components/Header.css';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [payerAccountId, setPayerAccountId] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [payerAccountId, setPayerAccountId] = useState<string[]>([]);
+  const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState<boolean>(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [billPeriodStartDate, setBillPeriodStartDate] = useState<string>('');
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +28,7 @@ function App() {
     setIsSubmitting(true); // Disable the button and change text
 
     // Basic validation for payerAccountId
-    if (!payerAccountId.trim()) {
+    if (payerAccountId.length === 0) {
       alert('Payer Account ID is required!');
       setIsSubmitting(false); // Re-enable the button
       return;
@@ -39,7 +44,7 @@ function App() {
     const queryParams = new URLSearchParams();
     // Correctly map your form inputs to the Lambda's expected query parameters
     queryParams.append('queryType', 'account'); // Assuming 'account' is the queryType for this form
-    queryParams.append('accountId', payerAccountId); // Use payerAccountId as accountId for Lambda
+    queryParams.append('accountId', payerAccountId.join(',')); // Join multiple account IDs with commas
 
     // Only append one of the date or invoice ID, based on which one is provided
     if (billPeriodStartDate.trim()) {
@@ -92,7 +97,7 @@ function App() {
     
     const queryParams = new URLSearchParams();
     queryParams.append('queryType', 'account');
-    queryParams.append('accountId', payerAccountId);
+    queryParams.append('accountId', payerAccountId.join(','));
     queryParams.append('format', 'csv'); // Request CSV format
     
     if (billPeriodStartDate.trim()) {
@@ -134,12 +139,80 @@ function App() {
     }
   };
 
+  // Fetch user accounts from the API
+  const fetchUserAccounts = async (email: string) => {
+    if (!email) return;
+    
+    console.log('Attempting to fetch accounts for email:', email);
+    setIsLoadingAccounts(true);
+    try {
+      // Use the actual API endpoint from CloudFormation outputs
+      const apiUrl = `https://saplj0po57.execute-api.us-east-1.amazonaws.com/prod/user-accounts?email=${encodeURIComponent(email)}`;
+      console.log('API URL:', apiUrl);
+      
+      // Get the current user's session for authentication
+      // In Amplify v6, we need to use a different approach to get the token
+      const { tokens } = await fetchAuthSession();
+      const idToken = tokens?.idToken?.toString();
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': idToken ? `Bearer ${idToken}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(`Failed to fetch user accounts: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('API response data:', data);
+      if (data.payer_account_ids && Array.isArray(data.payer_account_ids)) {
+        // Sort accounts in descending order
+        const sortedAccounts = [...data.payer_account_ids].sort((a, b) => b.localeCompare(a));
+        setAvailableAccounts(sortedAccounts);
+        
+        // If accounts are available, set the first one as default
+        if (sortedAccounts.length > 0) {
+          setPayerAccountId([sortedAccounts[0]]);
+        }
+      } else {
+        setAvailableAccounts([]);
+      }
+    } catch (err) {
+      console.error('Error fetching user accounts:', err);
+      // Show more detailed error in console
+      if (err instanceof Error) {
+        console.error('Error details:', err.message, err.stack);
+      }
+      setError(`Failed to load your account information. Please try again later.`);
+    } finally {
+      setIsLoadingAccounts(false);
+    }
+  };
+
   useEffect(() => {
     async function checkAuthStatus() {
       try {
         const user = await getCurrentUser();
         if (user) {
           setIsAuthenticated(true);
+          
+          // Get user email from Cognito
+          // Use username + domain to form complete email address
+          const username = user.username || '';
+          const email = username.includes('@') ? username : `${username}@amazon.com`;
+          console.log('User email captured:', email);
+          console.log('Full user object:', user);
+          setUserEmail(email);
+          
+          // Fetch user accounts once we have the email
+          if (email) {
+            fetchUserAccounts(email);
+          }
         } else {
           // Redirect to login if not authenticated
           navigate('/login');
@@ -171,13 +244,52 @@ function App() {
         {error && <p style={{ color: 'red' }}>{error}</p>}
         <div className="form-group">
           <label htmlFor="payerAccountId">Payer Account ID: (required)</label>
-          <input
-            type="text"
-            id="payerAccountId"
-            value={payerAccountId}
-            onChange={(e) => setPayerAccountId(e.target.value)}
-            required
-          />
+          {isLoadingAccounts ? (
+            <div className="loading-accounts">Loading your accounts...</div>
+          ) : availableAccounts.length > 0 ? (
+            <div className="account-select-container">
+              <input
+                type="text"
+                placeholder="Search accounts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="account-search"
+              />
+              <div className="account-options">
+                {availableAccounts
+                  .filter(account => account.toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map((account) => (
+                    <div 
+                      key={account} 
+                      className={`account-option ${payerAccountId.includes(account) ? 'selected' : ''}`}
+                      onClick={() => {
+                        if (payerAccountId.includes(account)) {
+                          setPayerAccountId(payerAccountId.filter(id => id !== account));
+                        } else {
+                          setPayerAccountId([...payerAccountId, account]);
+                        }
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={payerAccountId.includes(account)}
+                        onChange={() => {}} // Handled by the onClick of the parent div
+                      />
+                      <span>{account}</span>
+                    </div>
+                  ))}
+              </div>
+              {payerAccountId.length > 0 && (
+                <div className="selected-accounts">
+                  <div className="selected-count">{payerAccountId.length} account(s) selected</div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="no-accounts">
+              No accounts found for your email. Please contact support.
+            </div>
+          )}
         </div>
 
         <p className="choose-one-text">Choose at least ONE of the below:</p>
