@@ -3,12 +3,23 @@ import json
 import logging
 import os
 import csv
-import base64
-from decimal import Decimal
 import io
+from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
+
+# Import shared utilities
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.error_handler import handle_error, ValidationError
+from utils.response_formatter import (
+    format_success_response,
+    format_csv_response as utils_format_csv_response,
+)
+from utils.logging_utils import log_event, log_lambda_execution
+from utils.cors_config import get_cors_headers
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -20,23 +31,14 @@ table_name = os.environ.get("TABLE_NAME")
 table = dynamodb_client.Table(table_name)
 
 
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            # Convert Decimal objects to float for JSON serialization.
-            return float(obj)
-        return json.JSONEncoder.default(self, obj)
-
-
+@log_lambda_execution
 def lambda_handler(event, context):
-    logger.info(f"Received event: {json.dumps(event, indent=2)}")
+    # Log the incoming event
+    log_event(event, context)
 
-    # Define common headers for CORS
-    cors_headers = {
-        "Access-Control-Allow-Origin": "http://localhost:5173",  # Allow your frontend origin
-        "Access-Control-Allow-Methods": "GET,OPTIONS",  # Allow GET and OPTIONS methods
-        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",  # Allow specified headers
-    }
+    # Handle OPTIONS request (preflight)
+    if event.get("httpMethod") == "OPTIONS":
+        return {"statusCode": 200, "headers": get_cors_headers(), "body": ""}
 
     try:
         query_params = event.get("queryStringParameters", {}) or {}
@@ -45,6 +47,13 @@ def lambda_handler(event, context):
             "format", "json"
         )  # Default to JSON if not specified
 
+        # Validate query type
+        if query_type not in ["account", "date", "invoice"]:
+            raise ValidationError(
+                f"Invalid query type: {query_type}",
+                {"valid_types": ["account", "date", "invoice"]},
+            )
+
         # Different query types
         if query_type == "account":
             items = query_by_account_items(query_params)
@@ -52,27 +61,36 @@ def lambda_handler(event, context):
             items = query_by_date_items(query_params)
         elif query_type == "invoice":
             items = query_by_invoice_items(query_params)
-        else:
-            return {
-                "statusCode": 400,
-                "headers": {**{"Content-Type": "application/json"}, **cors_headers},
-                "body": json.dumps({"message": f"Invalid query type: {query_type}"}),
-            }
 
         # Format response based on requested format
         if format_type.lower() == "csv":
-            return format_csv_response(items, cors_headers)
+            return format_csv_response(items)
         else:
-            return format_json_response(items, cors_headers)
+            return format_success_response(
+                {"items": items, "count": len(items), "summary": summarize_data(items)}
+            )
 
+    except ValidationError as e:
+        # Handle validation errors
+        return handle_error(
+            e,
+            {
+                "aws_request_id": context.aws_request_id,
+                "query_params": query_params,
+                "function_name": context.function_name,
+            },
+        )
     except Exception as e:
+        # Handle unexpected errors
         logger.error(f"Error querying data: {str(e)}")
-        # For error responses, also include CORS headers
-        return {
-            "statusCode": 500,
-            "headers": {**{"Content-Type": "application/json"}, **cors_headers},
-            "body": json.dumps({"message": f"Error: {str(e)}"}),
-        }
+        return handle_error(
+            e,
+            {
+                "aws_request_id": context.aws_request_id,
+                "query_params": query_params,
+                "query_type": query_type if "query_type" in locals() else None,
+            },
+        )
 
 
 def query_by_account_items(params):
@@ -81,7 +99,7 @@ def query_by_account_items(params):
     bill_period_start_date = params.get("billPeriodStartDate")
 
     if not account_id:
-        raise ValueError("Missing 'accountId' parameter")
+        raise ValidationError("Missing 'accountId' parameter")
 
     # Handle multiple account IDs (comma-separated)
     account_ids = [aid.strip() for aid in account_id.split(",")]
@@ -129,7 +147,7 @@ def query_by_date_items(params):
     product = params.get("product")
 
     if not date:
-        raise ValueError("Missing 'date' parameter")
+        raise ValidationError("Missing 'date' parameter")
 
     key_condition = Key("bill_period_start_date").eq(date)
     if product:
@@ -145,7 +163,7 @@ def query_by_invoice_items(params):
     invoice_id = params.get("invoiceId")
 
     if not invoice_id:
-        raise ValueError("Missing 'invoiceId' parameter")
+        raise ValidationError("Missing 'invoiceId' parameter")
 
     response = table.query(
         IndexName="InvoiceIndex",
@@ -187,17 +205,6 @@ def generate_filename(items):
         return f"billing_data_multiple_accounts.csv"
 
 
-def format_json_response(items, cors_headers):
-    return {
-        "statusCode": 200,
-        "headers": {**{"Content-Type": "application/json"}, **cors_headers},
-        "body": json.dumps(
-            {"items": items, "count": len(items), "summary": summarize_data(items)},
-            cls=DecimalEncoder,
-        ),
-    }
-
-
 def summarize_data(items):
     """Generate a summary of the data for the JSON response"""
     if not items:
@@ -235,17 +242,9 @@ def summarize_data(items):
     }
 
 
-def format_csv_response(items, cors_headers):
+def format_csv_response(items):
     if not items:
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "text/csv",
-                "Content-Disposition": "attachment; filename=billing_data.csv",
-                **cors_headers,
-            },
-            "body": "",
-        }
+        return utils_format_csv_response("", "billing_data.csv")
 
     # Create CSV in memory
     output = io.StringIO()
@@ -293,14 +292,5 @@ def format_csv_response(items, cors_headers):
     # Generate a more descriptive filename based on query parameters
     filename = generate_filename(items)
 
-    # API Gateway binary content handling
-    return {
-        "statusCode": 200,
-        "headers": {
-            "Content-Type": "text/csv",
-            "Content-Disposition": f"attachment; filename={filename}",
-            **cors_headers,
-        },
-        "body": csv_content,
-        "isBase64Encoded": False,  # Changed to False since we're returning plain text
-    }
+    # Use the utility function to format the CSV response
+    return utils_format_csv_response(csv_content, filename)
