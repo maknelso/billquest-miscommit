@@ -4,15 +4,6 @@ import os
 import boto3
 from botocore.exceptions import ClientError
 
-# Import shared utilities
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.error_handler import handle_error, ValidationError, ResourceNotFoundError
-from utils.response_formatter import format_success_response
-from utils.logging_utils import log_event, log_lambda_execution
-from utils.cors_config import get_cors_headers
-
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -23,14 +14,31 @@ table_name = os.environ.get("TABLE_NAME")
 table = dynamodb_client.Table(table_name)
 
 
-@log_lambda_execution
+# Define CORS headers directly
+def get_cors_headers():
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+        "Access-Control-Allow-Credentials": "true",
+    }
+
+
+def format_response(status_code, body):
+    return {
+        "statusCode": status_code,
+        "headers": get_cors_headers(),
+        "body": json.dumps(body),
+    }
+
+
 def lambda_handler(event, context):
     """
     Lambda function that retrieves payer_account_ids associated with an email
     from the DynamoDB table.
     """
     # Log the incoming event
-    log_event(event, context)
+    logger.info(f"Received event: {json.dumps(event)}")
 
     # Handle OPTIONS request (preflight)
     if event.get("httpMethod") == "OPTIONS":
@@ -42,7 +50,7 @@ def lambda_handler(event, context):
         email = query_params.get("email")
 
         if not email:
-            raise ValidationError("Missing 'email' parameter")
+            return format_response(400, {"message": "Missing 'email' parameter"})
 
         logger.info(f"Querying for email: {email}")
 
@@ -51,8 +59,8 @@ def lambda_handler(event, context):
 
         # Check if the item exists
         if "Item" not in response:
-            raise ResourceNotFoundError(
-                f"No accounts found for email: {email}", {"email": email}
+            return format_response(
+                404, {"message": f"No accounts found for email: {email}"}
             )
 
         # Extract payer_account_ids from the item
@@ -62,34 +70,15 @@ def lambda_handler(event, context):
         logger.info(f"Found account IDs for {email}: {payer_account_ids}")
 
         # Return successful response
-        return format_success_response(
-            {"email": email, "payer_account_ids": payer_account_ids}
+        return format_response(
+            200, {"email": email, "payer_account_ids": payer_account_ids}
         )
 
-    except (ValidationError, ResourceNotFoundError) as e:
-        # Handle known error types
-        return handle_error(
-            e,
-            {
-                "aws_request_id": context.aws_request_id,
-                "email": email if "email" in locals() else None,
-                "function_name": context.function_name,
-            },
-        )
     except ClientError as e:
         # Handle AWS service errors
         logger.error(f"DynamoDB error: {str(e)}")
-        return handle_error(
-            e,
-            {
-                "aws_request_id": context.aws_request_id,
-                "service": "DynamoDB",
-                "email": email if "email" in locals() else None,
-            },
-        )
+        return format_response(500, {"message": f"Database error: {str(e)}"})
     except Exception as e:
         # Handle unexpected errors
         logger.error(f"Error processing request: {str(e)}")
-        return handle_error(
-            e, {"aws_request_id": context.aws_request_id, "event": event}
-        )
+        return format_response(500, {"message": f"Error: {str(e)}"})

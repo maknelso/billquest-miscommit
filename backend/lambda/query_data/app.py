@@ -9,18 +9,6 @@ from decimal import Decimal
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 
-# Import shared utilities
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.error_handler import handle_error, ValidationError
-from utils.response_formatter import (
-    format_success_response,
-    format_csv_response as utils_format_csv_response,
-)
-from utils.logging_utils import log_event, log_lambda_execution
-from utils.cors_config import get_cors_headers
-
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -31,10 +19,34 @@ table_name = os.environ.get("TABLE_NAME")
 table = dynamodb_client.Table(table_name)
 
 
-@log_lambda_execution
+# Define CORS headers directly
+def get_cors_headers():
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+        "Access-Control-Allow-Credentials": "true",
+    }
+
+
+def format_response(status_code, body):
+    return {
+        "statusCode": status_code,
+        "headers": get_cors_headers(),
+        "body": json.dumps(body, cls=DecimalEncoder),
+    }
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return json.JSONEncoder.default(self, obj)
+
+
 def lambda_handler(event, context):
     # Log the incoming event
-    log_event(event, context)
+    logger.info(f"Received event: {json.dumps(event)}")
 
     # Handle OPTIONS request (preflight)
     if event.get("httpMethod") == "OPTIONS":
@@ -49,9 +61,12 @@ def lambda_handler(event, context):
 
         # Validate query type
         if query_type not in ["account", "date", "invoice"]:
-            raise ValidationError(
-                f"Invalid query type: {query_type}",
-                {"valid_types": ["account", "date", "invoice"]},
+            return format_response(
+                400,
+                {
+                    "message": f"Invalid query type: {query_type}",
+                    "valid_types": ["account", "date", "invoice"],
+                },
             )
 
         # Different query types
@@ -66,31 +81,15 @@ def lambda_handler(event, context):
         if format_type.lower() == "csv":
             return format_csv_response(items)
         else:
-            return format_success_response(
-                {"items": items, "count": len(items), "summary": summarize_data(items)}
+            return format_response(
+                200,
+                {"items": items, "count": len(items), "summary": summarize_data(items)},
             )
 
-    except ValidationError as e:
-        # Handle validation errors
-        return handle_error(
-            e,
-            {
-                "aws_request_id": context.aws_request_id,
-                "query_params": query_params,
-                "function_name": context.function_name,
-            },
-        )
     except Exception as e:
         # Handle unexpected errors
         logger.error(f"Error querying data: {str(e)}")
-        return handle_error(
-            e,
-            {
-                "aws_request_id": context.aws_request_id,
-                "query_params": query_params,
-                "query_type": query_type if "query_type" in locals() else None,
-            },
-        )
+        return format_response(500, {"message": f"Error: {str(e)}"})
 
 
 def query_by_account_items(params):
@@ -99,7 +98,7 @@ def query_by_account_items(params):
     bill_period_start_date = params.get("billPeriodStartDate")
 
     if not account_id:
-        raise ValidationError("Missing 'accountId' parameter")
+        raise ValueError("Missing 'accountId' parameter")
 
     # Handle multiple account IDs (comma-separated)
     account_ids = [aid.strip() for aid in account_id.split(",")]
@@ -147,7 +146,7 @@ def query_by_date_items(params):
     product = params.get("product")
 
     if not date:
-        raise ValidationError("Missing 'date' parameter")
+        raise ValueError("Missing 'date' parameter")
 
     key_condition = Key("bill_period_start_date").eq(date)
     if product:
@@ -163,7 +162,7 @@ def query_by_invoice_items(params):
     invoice_id = params.get("invoiceId")
 
     if not invoice_id:
-        raise ValidationError("Missing 'invoiceId' parameter")
+        raise ValueError("Missing 'invoiceId' parameter")
 
     response = table.query(
         IndexName="InvoiceIndex",
@@ -244,7 +243,17 @@ def summarize_data(items):
 
 def format_csv_response(items):
     if not items:
-        return utils_format_csv_response("", "billing_data.csv")
+        # Return empty CSV with CORS headers
+        return {
+            "statusCode": 200,
+            "headers": {
+                **get_cors_headers(),
+                "Content-Type": "text/csv",
+                "Content-Disposition": "attachment; filename=billing_data.csv",
+            },
+            "body": "",
+            "isBase64Encoded": False,
+        }
 
     # Create CSV in memory
     output = io.StringIO()
@@ -292,5 +301,14 @@ def format_csv_response(items):
     # Generate a more descriptive filename based on query parameters
     filename = generate_filename(items)
 
-    # Use the utility function to format the CSV response
-    return utils_format_csv_response(csv_content, filename)
+    # Return CSV with CORS headers
+    return {
+        "statusCode": 200,
+        "headers": {
+            **get_cors_headers(),
+            "Content-Type": "text/csv",
+            "Content-Disposition": f"attachment; filename={filename}",
+        },
+        "body": csv_content,
+        "isBase64Encoded": False,
+    }
