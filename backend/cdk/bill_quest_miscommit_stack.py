@@ -15,6 +15,18 @@ from aws_cdk import (
 )
 from constructs import Construct
 
+# Import centralized configuration
+from backend.config.config import (
+    STACK_PREFIX,
+    DYNAMODB_TABLES,
+    S3_BUCKETS,
+    API_GATEWAY,
+    LAMBDA_CONFIG,
+    COGNITO_CONFIG,
+    REMOVAL_POLICY,
+    CORS_ALLOW_ALL_ORIGINS,
+)
+
 
 # <<< NOTE: This class name MUST match your project's stack name
 class BillQuestMiscommitStack(Stack):
@@ -42,12 +54,12 @@ class BillQuestMiscommitStack(Stack):
         """
         super().__init__(scope, construct_id, **kwargs)
 
-        stack_prefix = "BillQuestMiscommitStack"
+        stack_prefix = STACK_PREFIX
 
         billing_data_table = dynamodb.Table(
             self,
             "BillingDataTable",
-            table_name="edp_miscommit",  # Set the specific table name
+            table_name=DYNAMODB_TABLES["billing_data"],  # Set the specific table name
             partition_key=dynamodb.Attribute(
                 name="payer_account_id", type=dynamodb.AttributeType.STRING
             ),
@@ -55,7 +67,9 @@ class BillQuestMiscommitStack(Stack):
                 name="invoice_id#product_code", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.DESTROY
+            if REMOVAL_POLICY == "DESTROY"
+            else RemovalPolicy.RETAIN,
             point_in_time_recovery=True,
         )
 
@@ -86,7 +100,7 @@ class BillQuestMiscommitStack(Stack):
         raw_files_bucket = s3.Bucket(
             self,
             "RawFilesBucket",
-            bucket_name="billquestmiscommitstack-rawfilesbucket-nelmak",
+            bucket_name=S3_BUCKETS["raw_files"],
             # Highly recommended for security
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             auto_delete_objects=False,
@@ -97,7 +111,7 @@ class BillQuestMiscommitStack(Stack):
         ingest_lambda = lambda_.Function(
             self,
             "IngestDataLambda",
-            function_name=f"{stack_prefix}-IngestDataLambda-nelmak",
+            function_name=f"{stack_prefix}-IngestDataLambda-{S3_BUCKETS['raw_files'].split('-')[-1]}",
             runtime=lambda_.Runtime.PYTHON_3_10,
             # Point to 'app' and 'lambda_handler' function within the lambda directory
             handler="app.lambda_handler",
@@ -107,7 +121,7 @@ class BillQuestMiscommitStack(Stack):
             ),
             timeout=Duration.seconds(
                 # Max execution time for the Lambda.
-                60
+                LAMBDA_CONFIG["timeout_seconds"]
             ),
             environment={  # Environment variables for the Lambda function
                 "TABLE_NAME": billing_data_table.table_name  # Pass DynamoDB table name
@@ -136,12 +150,12 @@ class BillQuestMiscommitStack(Stack):
         query_lambda = lambda_.Function(
             self,
             "QueryDataLambda",
-            function_name=f"{stack_prefix}-QueryDataLambda-nelmak",
+            function_name=f"{stack_prefix}-QueryDataLambda-{S3_BUCKETS['raw_files'].split('-')[-1]}",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="app.lambda_handler",
             code=lambda_.Code.from_asset("./backend/lambda/query_data"),
             # Max execution time. Adjust as needed.
-            timeout=Duration.seconds(60),
+            timeout=Duration.seconds(LAMBDA_CONFIG["timeout_seconds"]),
             environment={"TABLE_NAME": billing_data_table.table_name},
         )
 
@@ -155,21 +169,17 @@ class BillQuestMiscommitStack(Stack):
         api = apigw.RestApi(
             self,
             "BillQuestApi",
-            rest_api_name="BillQuestAPIGatewaynelmak",
+            rest_api_name=API_GATEWAY["main_api_name"],
             description="API for BillQuest frontend to query data.",
             # Enable CORS (Cross-Origin Resource Sharing) for your frontend
             # This is crucial for your browser-based frontend to call your API.
             default_cors_preflight_options=apigw.CorsOptions(
                 #! CAUTION: ALL_ORIGINS means any website can call your API. Be specific in production!
-                allow_origins=apigw.Cors.ALL_ORIGINS,
-                allow_methods=["GET"],
-                allow_headers=[
-                    "Content-Type",
-                    "X-Amz-Date",
-                    "Authorization",
-                    "X-Api-Key",
-                    "X-Amz-Security-Token",
-                ],
+                allow_origins=apigw.Cors.ALL_ORIGINS
+                if CORS_ALLOW_ALL_ORIGINS
+                else API_GATEWAY["cors_origins"],
+                allow_methods=API_GATEWAY["cors_methods"],
+                allow_headers=API_GATEWAY["cors_headers"],
             ),
         )
 
@@ -193,7 +203,7 @@ class BillQuestMiscommitStack(Stack):
         website_bucket = s3.Bucket(
             self,
             "WebsiteBucket",
-            bucket_name="billquestmiscommitstack-websitebucket-nelmak",
+            bucket_name=S3_BUCKETS["website"],
             # Ensure public access is blocked. CloudFront will get specific access.
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
@@ -256,7 +266,9 @@ class BillQuestMiscommitStack(Stack):
                 "fullname": {"required": False, "mutable": True},
             },
             # Removal policy for development (use RETAIN for production)
-            removal_policy=RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.DESTROY
+            if REMOVAL_POLICY == "DESTROY"
+            else RemovalPolicy.RETAIN,
         )
 
         # --- 11. Cognito User Pool Client ---
@@ -293,9 +305,15 @@ class BillQuestMiscommitStack(Stack):
                 ],
             },
             # Prevent users from being automatically logged out
-            refresh_token_validity=Duration.days(30),
-            access_token_validity=Duration.minutes(60),
-            id_token_validity=Duration.minutes(60),
+            refresh_token_validity=Duration.days(
+                COGNITO_CONFIG["refresh_token_validity_days"]
+            ),
+            access_token_validity=Duration.minutes(
+                COGNITO_CONFIG["access_token_validity_minutes"]
+            ),
+            id_token_validity=Duration.minutes(
+                COGNITO_CONFIG["id_token_validity_minutes"]
+            ),
         )
 
         # --- 12. Cognito Authorizer for API Gateway ---
@@ -357,12 +375,14 @@ class BillQuestMiscommitStack(Stack):
         user_info_table = dynamodb.Table(
             self,
             "UserInfoTable",
-            table_name="edp_miscommit_user_info_table",
+            table_name=DYNAMODB_TABLES["user_info"],
             partition_key=dynamodb.Attribute(
                 name="email", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.DESTROY
+            if REMOVAL_POLICY == "DESTROY"
+            else RemovalPolicy.RETAIN,
             point_in_time_recovery=True,
         )
 
@@ -371,7 +391,7 @@ class BillQuestMiscommitStack(Stack):
         user_info_bucket = s3.Bucket(
             self,
             "UserInfoBucket",
-            bucket_name="billquestmiscommitstack-user-access-bucket-nelmak",
+            bucket_name=S3_BUCKETS["user_access"],
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             auto_delete_objects=False,
             removal_policy=RemovalPolicy.RETAIN,
@@ -382,11 +402,11 @@ class BillQuestMiscommitStack(Stack):
         update_user_info_lambda = lambda_.Function(
             self,
             "UpdateUserInfoLambda",
-            function_name=f"{stack_prefix}-UpdateUserInfoLambda-nelmak",
+            function_name=f"{stack_prefix}-UpdateUserInfoLambda-{S3_BUCKETS['raw_files'].split('-')[-1]}",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="app.lambda_handler",
             code=lambda_.Code.from_asset("./backend/lambda/update_user_info"),
-            timeout=Duration.seconds(60),
+            timeout=Duration.seconds(LAMBDA_CONFIG["timeout_seconds"]),
             environment={"TABLE_NAME": user_info_table.table_name},
         )
 
@@ -401,30 +421,16 @@ class BillQuestMiscommitStack(Stack):
             s3n.LambdaDestination(update_user_info_lambda),
         )
 
-        # Add outputs for the new resources
-        CfnOutput(
-            self,
-            "UserInfoBucketName",
-            value=user_info_bucket.bucket_name,
-            description="The S3 bucket for user info CSV uploads.",
-        )
-        CfnOutput(
-            self,
-            "UserInfoTableName",
-            value=user_info_table.table_name,
-            description="The DynamoDB table for user information.",
-        )
-
         # --- 17. Lambda Function for Getting User Accounts ---
         # This function retrieves payer_account_ids associated with an email
         get_user_accounts_lambda = lambda_.Function(
             self,
             "GetUserAccountsLambda",
-            function_name=f"{stack_prefix}-GetUserAccountsLambda-nelmak",
+            function_name=f"{stack_prefix}-GetUserAccountsLambda-{S3_BUCKETS['raw_files'].split('-')[-1]}",
             runtime=lambda_.Runtime.PYTHON_3_10,
             handler="app.lambda_handler",
             code=lambda_.Code.from_asset("./backend/lambda/get_user_accounts"),
-            timeout=Duration.seconds(30),
+            timeout=Duration.seconds(LAMBDA_CONFIG["user_accounts_timeout"]),
             environment={"TABLE_NAME": user_info_table.table_name},
         )
 
@@ -436,18 +442,14 @@ class BillQuestMiscommitStack(Stack):
         user_access_api = apigw.RestApi(
             self,
             "BillQuestUserAccessApi",
-            rest_api_name="BillQuestAPIGatewayUserAccessnelmak",
+            rest_api_name=API_GATEWAY["user_access_api_name"],
             description="API for retrieving user account information",
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=apigw.Cors.ALL_ORIGINS,
-                allow_methods=["GET", "OPTIONS"],
-                allow_headers=[
-                    "Content-Type",
-                    "X-Amz-Date",
-                    "Authorization",
-                    "X-Api-Key",
-                    "X-Amz-Security-Token",
-                ],
+                allow_origins=apigw.Cors.ALL_ORIGINS
+                if CORS_ALLOW_ALL_ORIGINS
+                else API_GATEWAY["cors_origins"],
+                allow_methods=API_GATEWAY["cors_methods"],
+                allow_headers=API_GATEWAY["cors_headers"],
             ),
         )
 
@@ -465,6 +467,20 @@ class BillQuestMiscommitStack(Stack):
             apigw.LambdaIntegration(get_user_accounts_lambda),
             authorizer=user_access_auth,
             authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
+        # Add outputs for the new resources
+        CfnOutput(
+            self,
+            "UserInfoBucketName",
+            value=user_info_bucket.bucket_name,
+            description="The S3 bucket for user info CSV uploads.",
+        )
+        CfnOutput(
+            self,
+            "UserInfoTableName",
+            value=user_info_table.table_name,
+            description="The DynamoDB table for user information.",
         )
 
         # Add output for the User Access API endpoint
