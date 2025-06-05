@@ -1,0 +1,7 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "scripts": {
+    "lint:cfn": "cd .. && cdk synth && cfn-lint cdk.out/*.template.json"
+  }
+}
