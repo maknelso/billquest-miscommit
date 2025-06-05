@@ -9,7 +9,7 @@ import './components/Header.css';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [userEmail, setUserEmail] = useState<string>('');
+  // We don't need a separate userEmail state since we're using it only for fetching accounts
   const [payerAccountId, setPayerAccountId] = useState<string[]>([]);
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState<boolean>(false);
@@ -207,7 +207,6 @@ function App() {
           const email = username.includes('@') ? username : `${username}@amazon.com`;
           console.log('User email captured:', email);
           console.log('Full user object:', user);
-          setUserEmail(email);
           
           // Fetch user accounts once we have the email
           if (email) {

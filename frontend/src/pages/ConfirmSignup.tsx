@@ -70,7 +70,7 @@ function ConfirmSignup() {
         </button>
         
         <p className="login-link">
-          <a href="#" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Back to Login</a>
+          <a href="#" onClick={() => navigate('/login')}>Back to Login</a>
         </p>
       </form>
     </div>
