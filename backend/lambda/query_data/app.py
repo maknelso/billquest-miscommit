@@ -19,8 +19,13 @@ table_name = os.environ.get("TABLE_NAME")
 table = dynamodb_client.Table(table_name)
 
 
-# Define CORS headers directly
 def get_cors_headers():
+    """
+    Return CORS headers for API responses.
+
+    Returns:
+        dict: Dictionary containing CORS headers allowing cross-origin requests
+    """
     return {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,OPTIONS",
@@ -30,6 +35,16 @@ def get_cors_headers():
 
 
 def format_response(status_code, body):
+    """
+    Format a standardized API Gateway response with CORS headers.
+
+    Args:
+        status_code (int): HTTP status code
+        body (dict): Response body to be JSON serialized
+
+    Returns:
+        dict: Formatted API Gateway response
+    """
     return {
         "statusCode": status_code,
         "headers": get_cors_headers(),
@@ -38,6 +53,11 @@ def format_response(status_code, body):
 
 
 class DecimalEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder that handles Decimal objects from DynamoDB.
+    Converts Decimal values to float for JSON serialization.
+    """
+
     def default(self, obj):
         if isinstance(obj, Decimal):
             return float(obj)
@@ -45,6 +65,23 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def lambda_handler(event, context):
+    """
+    Lambda function that queries billing data from DynamoDB based on various criteria.
+
+    This function supports three query types:
+    1. account: Query by payer account ID, optionally filtered by invoice ID or bill period
+    2. date: Query by bill period start date, optionally filtered by product code
+    3. invoice: Query by invoice ID
+
+    The function can return results in either JSON or CSV format.
+
+    Args:
+        event (dict): API Gateway event containing request data
+        context (object): Lambda context object
+
+    Returns:
+        dict: API Gateway response with status code, headers, and body
+    """
     # Log the incoming event
     logger.info(f"Received event: {json.dumps(event)}")
 
@@ -86,6 +123,10 @@ def lambda_handler(event, context):
                 {"items": items, "count": len(items), "summary": summarize_data(items)},
             )
 
+    except ValueError as e:
+        # Handle validation errors
+        logger.warning(f"Validation error: {str(e)}")
+        return format_response(400, {"message": str(e)})
     except Exception as e:
         # Handle unexpected errors
         logger.error(f"Error querying data: {str(e)}")
@@ -93,6 +134,21 @@ def lambda_handler(event, context):
 
 
 def query_by_account_items(params):
+    """
+    Query billing data by payer account ID with optional filters.
+
+    Args:
+        params (dict): Query parameters containing:
+            - accountId: Required payer account ID (can be comma-separated for multiple)
+            - invoiceId: Optional invoice ID filter
+            - billPeriodStartDate: Optional bill period start date filter
+
+    Returns:
+        list: List of billing data items matching the query criteria
+
+    Raises:
+        ValueError: If accountId parameter is missing
+    """
     account_id = params.get("accountId")
     invoice_id = params.get("invoiceId")
     bill_period_start_date = params.get("billPeriodStartDate")
@@ -142,6 +198,20 @@ def query_by_account_items(params):
 
 
 def query_by_date_items(params):
+    """
+    Query billing data by bill period start date with optional product filter.
+
+    Args:
+        params (dict): Query parameters containing:
+            - date: Required bill period start date
+            - product: Optional product code filter
+
+    Returns:
+        list: List of billing data items matching the query criteria
+
+    Raises:
+        ValueError: If date parameter is missing
+    """
     date = params.get("date")
     product = params.get("product")
 
@@ -159,6 +229,19 @@ def query_by_date_items(params):
 
 
 def query_by_invoice_items(params):
+    """
+    Query billing data by invoice ID.
+
+    Args:
+        params (dict): Query parameters containing:
+            - invoiceId: Required invoice ID
+
+    Returns:
+        list: List of billing data items matching the query criteria
+
+    Raises:
+        ValueError: If invoiceId parameter is missing
+    """
     invoice_id = params.get("invoiceId")
 
     if not invoice_id:
@@ -172,7 +255,18 @@ def query_by_invoice_items(params):
 
 
 def generate_filename(items):
-    """Generate a descriptive filename for the CSV download based on the data"""
+    """
+    Generate a descriptive filename for the CSV download based on the data.
+
+    Creates a filename that reflects the content of the data, using account ID,
+    invoice ID, or date information when available.
+
+    Args:
+        items (list): List of billing data items
+
+    Returns:
+        str: Generated filename for the CSV file
+    """
     if not items:
         return "billing_data.csv"
 
@@ -205,7 +299,18 @@ def generate_filename(items):
 
 
 def summarize_data(items):
-    """Generate a summary of the data for the JSON response"""
+    """
+    Generate a summary of the billing data for the JSON response.
+
+    Calculates metrics like unique accounts, invoices, dates, products,
+    and total cost from the billing data items.
+
+    Args:
+        items (list): List of billing data items
+
+    Returns:
+        dict: Summary statistics about the billing data
+    """
     if not items:
         return {}
 
@@ -242,6 +347,18 @@ def summarize_data(items):
 
 
 def format_csv_response(items):
+    """
+    Format billing data as a CSV file for download.
+
+    Creates a CSV file from the billing data items and returns it as an
+    API Gateway response with appropriate headers for file download.
+
+    Args:
+        items (list): List of billing data items
+
+    Returns:
+        dict: API Gateway response containing the CSV file
+    """
     if not items:
         # Return empty CSV with CORS headers
         return {

@@ -8,14 +8,6 @@ from decimal import Decimal
 
 import boto3
 
-# Import shared utilities
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.error_handler import handle_error, ValidationError
-from utils.response_formatter import format_success_response
-from utils.logging_utils import log_event, log_lambda_execution
-
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -28,7 +20,16 @@ table = dynamodb_client.Table(table_name)
 
 
 def check_if_processed(bucket, key):
-    """Check if file was already processed by looking at metadata."""
+    """
+    Check if a file was already processed by looking at its metadata.
+
+    Args:
+        bucket (str): S3 bucket name
+        key (str): S3 object key
+
+    Returns:
+        bool: True if the file was already processed, False otherwise
+    """
     try:
         response = s3_client.head_object(Bucket=bucket, Key=key)
         metadata = response.get("Metadata", {})
@@ -39,7 +40,13 @@ def check_if_processed(bucket, key):
 
 
 def mark_file_as_processed(bucket, key):
-    """Mark file as processed by setting metadata."""
+    """
+    Mark a file as processed by setting metadata on the S3 object.
+
+    Args:
+        bucket (str): S3 bucket name
+        key (str): S3 object key
+    """
     copy_source = {"Bucket": bucket, "Key": key}
     s3_client.copy_object(
         CopySource=copy_source,
@@ -50,10 +57,25 @@ def mark_file_as_processed(bucket, key):
     )
 
 
-@log_lambda_execution
 def lambda_handler(event, context):
-    # Log the incoming event
-    log_event(event, context)
+    """
+    Lambda function triggered by S3 events to process billing data CSV files.
+
+    This function:
+    1. Checks if the file was already processed
+    2. Downloads and parses the CSV file from S3
+    3. Validates the required fields
+    4. Writes the data to DynamoDB
+    5. Marks the file as processed
+
+    Args:
+        event (dict): S3 event notification
+        context (object): Lambda context object
+
+    Returns:
+        dict: Response indicating success or failure
+    """
+    logger.info(f"Received event: {json.dumps(event)}")
 
     try:
         # Get the S3 bucket and key from the event
@@ -63,12 +85,10 @@ def lambda_handler(event, context):
         # Check if file was already processed
         if check_if_processed(bucket, key):
             logger.info(f"File {key} was already processed. Skipping.")
-            return format_success_response(
-                {
-                    "message": f"File {key} was already processed. Skipping.",
-                    "status": "skipped",
-                }
-            )
+            return {
+                "statusCode": 200,
+                "body": json.dumps(f"File {key} was already processed. Skipping."),
+            }
 
         # Get the file from S3
         response = s3_client.get_object(Bucket=bucket, Key=key)
@@ -76,10 +96,6 @@ def lambda_handler(event, context):
 
         # Process CSV data
         csv_reader = csv.DictReader(io.StringIO(file_content))
-
-        # Track processing statistics
-        processed_count = 0
-        error_count = 0
 
         # Validate CSV structure
         required_fields = [
@@ -90,14 +106,18 @@ def lambda_handler(event, context):
         ]
         sample_row = next(csv_reader, None)
         if not sample_row:
-            raise ValidationError("CSV file is empty or improperly formatted")
+            raise ValueError("CSV file is empty or improperly formatted")
 
         for field in required_fields:
             if field not in sample_row:
-                raise ValidationError(f"CSV file is missing required field: {field}")
+                raise ValueError(f"CSV file is missing required field: {field}")
 
         # Reset the reader to include the first row
         csv_reader = csv.DictReader(io.StringIO(file_content))
+
+        # Track processing statistics
+        processed_count = 0
+        error_count = 0
 
         # Batch write to DynamoDB
         with table.batch_writer() as batch:
@@ -151,35 +171,23 @@ def lambda_handler(event, context):
         mark_file_as_processed(bucket, key)
         logger.info(f"Successfully processed and marked file {key}")
 
-        return format_success_response(
-            {
-                "message": f"Successfully processed {key}",
-                "statistics": {
-                    "processed": processed_count,
-                    "errors": error_count,
-                    "total": processed_count + error_count,
-                },
-            }
-        )
+        return {
+            "statusCode": 200,
+            "body": json.dumps(
+                {
+                    "message": f"Successfully processed {key}",
+                    "statistics": {
+                        "processed": processed_count,
+                        "errors": error_count,
+                        "total": processed_count + error_count,
+                    },
+                }
+            ),
+        }
 
-    except ValidationError as e:
-        # Handle validation errors
-        return handle_error(
-            e,
-            {
-                "aws_request_id": context.aws_request_id,
-                "bucket": bucket if "bucket" in locals() else None,
-                "key": key if "key" in locals() else None,
-            },
-        )
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
-        return handle_error(
-            e,
-            {
-                "aws_request_id": context.aws_request_id,
-                "bucket": bucket if "bucket" in locals() else None,
-                "key": key if "key" in locals() else None,
-                "function_name": context.function_name,
-            },
-        )
+        return {
+            "statusCode": 500,
+            "body": json.dumps(f"Error processing file: {str(e)}"),
+        }

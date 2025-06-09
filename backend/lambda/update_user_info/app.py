@@ -5,15 +5,6 @@ import csv
 import boto3
 from urllib.parse import unquote_plus
 
-# Import shared utilities
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.error_handler import handle_error, ValidationError
-from utils.response_formatter import format_success_response
-from utils.logging_utils import log_lambda_execution
-from utils.cors_config import get_cors_headers
-
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -27,13 +18,23 @@ table = dynamodb_client.Table(table_name)
 s3_client = boto3.client("s3")
 
 
-@log_lambda_execution
 def lambda_handler(event, context):
     """
     Lambda function that processes CSV files uploaded to S3 and updates DynamoDB.
-    The CSV should contain email and payer_account_id columns.
-    One email can be associated with multiple payer_account_ids (semicolon-separated).
-    Each new file upload will overwrite existing entries with the same email.
+
+    This function:
+    1. Downloads a CSV file from S3 when it's uploaded
+    2. Parses the CSV file which should contain email and payer_account_id columns
+    3. For each row, updates the DynamoDB table with the email and associated account IDs
+    4. One email can be associated with multiple payer_account_ids (semicolon-separated)
+    5. Each new file upload will overwrite existing entries with the same email
+
+    Args:
+        event (dict): S3 event notification
+        context (object): Lambda context object
+
+    Returns:
+        dict: Response indicating success or failure with processing statistics
     """
     try:
         # Get bucket and key from the S3 event
@@ -116,26 +117,24 @@ def lambda_handler(event, context):
                 error_count += 1
 
         # Return success response with processing statistics
-        return format_success_response(
-            {
-                "message": f"Successfully processed file {key}",
-                "statistics": {
-                    "processed": processed_count,
-                    "skipped": skipped_count,
-                    "errors": error_count,
-                    "total": processed_count + skipped_count + error_count,
-                },
-            }
-        )
+        return {
+            "statusCode": 200,
+            "body": json.dumps(
+                {
+                    "message": f"Successfully processed file {key}",
+                    "statistics": {
+                        "processed": processed_count,
+                        "skipped": skipped_count,
+                        "errors": error_count,
+                        "total": processed_count + skipped_count + error_count,
+                    },
+                }
+            ),
+        }
 
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
-        return handle_error(
-            e,
-            {
-                "aws_request_id": context.aws_request_id,
-                "bucket": bucket if "bucket" in locals() else None,
-                "key": key if "key" in locals() else None,
-                "function_name": context.function_name,
-            },
-        )
+        return {
+            "statusCode": 500,
+            "body": json.dumps(f"Error processing file: {str(e)}"),
+        }

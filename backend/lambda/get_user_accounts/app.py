@@ -14,8 +14,13 @@ table_name = os.environ.get("TABLE_NAME")
 table = dynamodb_client.Table(table_name)
 
 
-# Define CORS headers directly
 def get_cors_headers():
+    """
+    Return CORS headers for API responses.
+
+    Returns:
+        dict: Dictionary containing CORS headers allowing cross-origin requests
+    """
     return {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,OPTIONS",
@@ -25,6 +30,16 @@ def get_cors_headers():
 
 
 def format_response(status_code, body):
+    """
+    Format a standardized API Gateway response with CORS headers.
+
+    Args:
+        status_code (int): HTTP status code
+        body (dict): Response body to be JSON serialized
+
+    Returns:
+        dict: Formatted API Gateway response
+    """
     return {
         "statusCode": status_code,
         "headers": get_cors_headers(),
@@ -36,6 +51,18 @@ def lambda_handler(event, context):
     """
     Lambda function that retrieves payer_account_ids associated with an email
     from the DynamoDB table.
+
+    This function:
+    1. Extracts the email from query parameters
+    2. Queries the DynamoDB table for the email
+    3. Returns the associated payer_account_ids if found
+
+    Args:
+        event (dict): API Gateway event containing request data
+        context (object): Lambda context object
+
+    Returns:
+        dict: API Gateway response with status code, headers, and body
     """
     # Log the incoming event
     logger.info(f"Received event: {json.dumps(event)}")
