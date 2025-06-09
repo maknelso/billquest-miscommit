@@ -6,6 +6,9 @@ from aws_cdk import (
     aws_apigateway as apigw,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
+    aws_sns as sns,
     aws_cognito as cognito,  # For user authentication
     aws_dynamodb as dynamodb,
     aws_lambda as lambda_,
@@ -501,4 +504,168 @@ class BillQuestMiscommitStack(Stack):
             "UserAccessApiEndpoint",
             value=f"{user_access_api.url}user-accounts",
             description="The API endpoint for retrieving user account information.",
+        )
+
+        # --- 19. CloudWatch Monitoring ---
+        # Create an SNS topic for alarm notifications
+        alarm_topic = sns.Topic(
+            self,
+            "BillQuestAlarmTopic",
+            display_name=f"{stack_prefix}-Alarms",
+            topic_name=f"{stack_prefix}-Alarms",
+        )
+
+        # Add custom subscription to SNS topic for alarms for nelmak@amazon.com
+        alarm_topic.add_subscription(
+            sns.Subscription(
+                protocol=sns.SubscriptionProtocol.EMAIL, endpoint="nelmak@amazon.com"
+            )
+        )
+
+        # Output the SNS topic ARN
+        CfnOutput(
+            self,
+            "AlarmTopicArn",
+            value=alarm_topic.topic_arn,
+            description="The SNS topic ARN for CloudWatch alarms.",
+        )
+
+        # Lambda Error Rate Alarms
+        lambda_functions = {
+            "GetUserAccountsLambda": get_user_accounts_lambda,
+            "QueryDataLambda": query_lambda,
+            "IngestDataLambda": ingest_lambda,
+            "UpdateUserInfoLambda": update_user_info_lambda,
+        }
+
+        for name, func in lambda_functions.items():
+            # Create error alarm for each Lambda function
+            lambda_error_alarm = cloudwatch.Alarm(
+                self,
+                f"{name}ErrorAlarm",
+                alarm_name=f"{stack_prefix}-{name}-Errors",
+                alarm_description=f"Alarm when {name} encounters errors",
+                metric=func.metric_errors(),
+                threshold=2,
+                evaluation_periods=1,
+                period=Duration.minutes(5),
+                comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+            )
+
+            # Add alarm action
+            lambda_error_alarm.add_alarm_action(
+                cloudwatch_actions.SnsAction(alarm_topic)
+            )
+
+        # API Gateway 4xx Error Alarm
+        api_4xx_alarm = cloudwatch.Alarm(
+            self,
+            "ApiGateway4xxErrorAlarm",
+            alarm_name=f"{stack_prefix}-ApiGateway-4xxErrors",
+            alarm_description="Alarm when API Gateway returns too many 4xx errors",
+            metric=api.metric_4xx_error(),
+            threshold=10,
+            evaluation_periods=1,
+            period=Duration.minutes(5),
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        api_4xx_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarm_topic))
+
+        # API Gateway 5xx Error Alarm
+        api_5xx_alarm = cloudwatch.Alarm(
+            self,
+            "ApiGateway5xxErrorAlarm",
+            alarm_name=f"{stack_prefix}-ApiGateway-5xxErrors",
+            alarm_description="Alarm when API Gateway returns 5xx errors",
+            metric=api.metric_5xx_error(),
+            threshold=1,
+            evaluation_periods=1,
+            period=Duration.minutes(5),
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        api_5xx_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarm_topic))
+
+        # User Access API 4xx Error Alarm
+        user_api_4xx_alarm = cloudwatch.Alarm(
+            self,
+            "UserApiGateway4xxErrorAlarm",
+            alarm_name=f"{stack_prefix}-UserApiGateway-4xxErrors",
+            alarm_description="Alarm when User Access API Gateway returns too many 4xx errors",
+            metric=user_access_api.metric_4xx_error(),
+            threshold=10,
+            evaluation_periods=1,
+            period=Duration.minutes(5),
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        user_api_4xx_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarm_topic))
+
+        # User Access API 5xx Error Alarm
+        user_api_5xx_alarm = cloudwatch.Alarm(
+            self,
+            "UserApiGateway5xxErrorAlarm",
+            alarm_name=f"{stack_prefix}-UserApiGateway-5xxErrors",
+            alarm_description="Alarm when User Access API Gateway returns 5xx errors",
+            metric=user_access_api.metric_5xx_error(),
+            threshold=1,
+            evaluation_periods=1,
+            period=Duration.minutes(5),
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        user_api_5xx_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarm_topic))
+
+        # Create CloudWatch Dashboard
+        dashboard = cloudwatch.Dashboard(
+            self, "BillQuestDashboard", dashboard_name=f"{stack_prefix}-Dashboard"
+        )
+
+        # Add Lambda metrics widgets
+        lambda_errors_widget = cloudwatch.GraphWidget(
+            title="Lambda Errors",
+            left=[func.metric_errors() for func in lambda_functions.values()],
+            width=12,
+            height=6,
+        )
+
+        lambda_duration_widget = cloudwatch.GraphWidget(
+            title="Lambda Duration",
+            left=[func.metric_duration() for func in lambda_functions.values()],
+            width=12,
+            height=6,
+        )
+
+        # Add API Gateway metrics widgets
+        api_errors_widget = cloudwatch.GraphWidget(
+            title="API Gateway Errors",
+            left=[
+                api.metric_4xx_error(),
+                api.metric_5xx_error(),
+                user_access_api.metric_4xx_error(),
+                user_access_api.metric_5xx_error(),
+            ],
+            width=12,
+            height=6,
+        )
+
+        api_latency_widget = cloudwatch.GraphWidget(
+            title="API Gateway Latency",
+            left=[api.metric_latency(), user_access_api.metric_latency()],
+            width=12,
+            height=6,
+        )
+
+        # Add widgets to dashboard
+        dashboard.add_widgets(
+            lambda_errors_widget,
+            lambda_duration_widget,
+            api_errors_widget,
+            api_latency_widget,
         )
