@@ -133,20 +133,12 @@ class BillQuestMiscommitStack(Stack):
 
         # Grant the Ingest Lambda necessary permissions with least privilege
         # Only grant specific S3 permissions needed: GetObject for reading files and PutObjectAcl/PutObject for marking as processed
-        raw_files_bucket.grant(
-            ingest_lambda,
-            "s3:GetObject",
-            "s3:PutObjectAcl",
-            "s3:PutObject",
-            "s3:CopyObject",  # Needed for updating object metadata
-        )
+        raw_files_bucket.grant_read_write(
+            ingest_lambda
+        )  # For reading files and updating metadata
 
         # Only grant specific DynamoDB permissions needed: PutItem for writing data
-        billing_data_table.grant(
-            ingest_lambda,
-            "dynamodb:PutItem",
-            "dynamodb:BatchWriteItem",  # For batch operations
-        )
+        billing_data_table.grant_write_data(ingest_lambda)  # For batch write operations
 
         # --- 4. S3 Event Notification to trigger Ingest Lambda ---
         # Configures the S3 bucket to invoke the Lambda when new objects are created.
@@ -173,7 +165,7 @@ class BillQuestMiscommitStack(Stack):
 
         # Grant the Query Lambda necessary permissions with least privilege
         # Only grant specific DynamoDB permissions needed: Query for reading data with filters
-        billing_data_table.grant(query_lambda, "dynamodb:Query")
+        billing_data_table.grant_read_data(query_lambda)  # For querying data
 
         # --- 6. API Gateway for Frontend Access ---
         # Creates a REST API endpoint that your frontend will interact with.
@@ -423,10 +415,12 @@ class BillQuestMiscommitStack(Stack):
 
         # Grant the Lambda necessary permissions with least privilege
         # Only grant specific S3 permissions needed: GetObject for reading uploaded files
-        user_info_bucket.grant(update_user_info_lambda, "s3:GetObject")
+        user_info_bucket.grant_read(update_user_info_lambda)  # For reading files
 
         # Only grant specific DynamoDB permissions needed: PutItem for updating user info
-        user_info_table.grant(update_user_info_lambda, "dynamodb:PutItem")
+        user_info_table.grant_write_data(
+            update_user_info_lambda
+        )  # For writing user data
 
         # --- 16. S3 Event Notification to trigger Update User Info Lambda ---
         # Configures the S3 bucket to invoke the Lambda when new objects are created
@@ -450,7 +444,9 @@ class BillQuestMiscommitStack(Stack):
 
         # Grant the Lambda necessary permissions with least privilege
         # Only grant specific DynamoDB permissions needed: GetItem for retrieving user accounts
-        user_info_table.grant(get_user_accounts_lambda, "dynamodb:GetItem")
+        user_info_table.grant_read_data(
+            get_user_accounts_lambda
+        )  # For reading user accounts
 
         # --- 18. API Gateway for User Access ---
         # Creates a REST API endpoint for user account access
@@ -515,13 +511,6 @@ class BillQuestMiscommitStack(Stack):
             topic_name=f"{stack_prefix}-Alarms",
         )
 
-        # Add custom subscription to SNS topic for alarms for nelmak@amazon.com
-        alarm_topic.add_subscription(
-            sns.Subscription(
-                protocol=sns.SubscriptionProtocol.EMAIL, endpoint="nelmak@amazon.com"
-            )
-        )
-
         # Output the SNS topic ARN
         CfnOutput(
             self,
@@ -529,6 +518,8 @@ class BillQuestMiscommitStack(Stack):
             value=alarm_topic.topic_arn,
             description="The SNS topic ARN for CloudWatch alarms.",
         )
+
+        # Note: To subscribe to this topic, use the AWS Console after deployment
 
         # Lambda Error Rate Alarms
         lambda_functions = {
@@ -539,7 +530,7 @@ class BillQuestMiscommitStack(Stack):
         }
 
         for name, func in lambda_functions.items():
-            # Create error alarm for each Lambda function
+            # Create the alarm using the metric
             lambda_error_alarm = cloudwatch.Alarm(
                 self,
                 f"{name}ErrorAlarm",
@@ -548,7 +539,6 @@ class BillQuestMiscommitStack(Stack):
                 metric=func.metric_errors(),
                 threshold=2,
                 evaluation_periods=1,
-                period=Duration.minutes(5),
                 comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
                 treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
             )
@@ -564,10 +554,9 @@ class BillQuestMiscommitStack(Stack):
             "ApiGateway4xxErrorAlarm",
             alarm_name=f"{stack_prefix}-ApiGateway-4xxErrors",
             alarm_description="Alarm when API Gateway returns too many 4xx errors",
-            metric=api.metric_4xx_error(),
+            metric=api.metric_client_error(),
             threshold=10,
             evaluation_periods=1,
-            period=Duration.minutes(5),
             comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
@@ -580,10 +569,9 @@ class BillQuestMiscommitStack(Stack):
             "ApiGateway5xxErrorAlarm",
             alarm_name=f"{stack_prefix}-ApiGateway-5xxErrors",
             alarm_description="Alarm when API Gateway returns 5xx errors",
-            metric=api.metric_5xx_error(),
+            metric=api.metric_server_error(),
             threshold=1,
             evaluation_periods=1,
-            period=Duration.minutes(5),
             comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
@@ -596,10 +584,9 @@ class BillQuestMiscommitStack(Stack):
             "UserApiGateway4xxErrorAlarm",
             alarm_name=f"{stack_prefix}-UserApiGateway-4xxErrors",
             alarm_description="Alarm when User Access API Gateway returns too many 4xx errors",
-            metric=user_access_api.metric_4xx_error(),
+            metric=user_access_api.metric_client_error(),
             threshold=10,
             evaluation_periods=1,
-            period=Duration.minutes(5),
             comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
@@ -612,10 +599,9 @@ class BillQuestMiscommitStack(Stack):
             "UserApiGateway5xxErrorAlarm",
             alarm_name=f"{stack_prefix}-UserApiGateway-5xxErrors",
             alarm_description="Alarm when User Access API Gateway returns 5xx errors",
-            metric=user_access_api.metric_5xx_error(),
+            metric=user_access_api.metric_server_error(),
             threshold=1,
             evaluation_periods=1,
-            period=Duration.minutes(5),
             comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
@@ -646,10 +632,10 @@ class BillQuestMiscommitStack(Stack):
         api_errors_widget = cloudwatch.GraphWidget(
             title="API Gateway Errors",
             left=[
-                api.metric_4xx_error(),
-                api.metric_5xx_error(),
-                user_access_api.metric_4xx_error(),
-                user_access_api.metric_5xx_error(),
+                api.metric_client_error(),
+                api.metric_server_error(),
+                user_access_api.metric_client_error(),
+                user_access_api.metric_server_error(),
             ],
             width=12,
             height=6,
