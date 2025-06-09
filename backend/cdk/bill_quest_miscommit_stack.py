@@ -128,13 +128,22 @@ class BillQuestMiscommitStack(Stack):
             },
         )
 
-        # Grant the Ingest Lambda necessary permissions
-        raw_files_bucket.grant_read_write(
-            ingest_lambda
-        )  # Allow Lambda to read and write to S3 bucket
-        billing_data_table.grant_write_data(
-            ingest_lambda
-        )  # Allow Lambda to write to the DynamoDB table
+        # Grant the Ingest Lambda necessary permissions with least privilege
+        # Only grant specific S3 permissions needed: GetObject for reading files and PutObjectAcl/PutObject for marking as processed
+        raw_files_bucket.grant(
+            ingest_lambda,
+            "s3:GetObject",
+            "s3:PutObjectAcl",
+            "s3:PutObject",
+            "s3:CopyObject",  # Needed for updating object metadata
+        )
+
+        # Only grant specific DynamoDB permissions needed: PutItem for writing data
+        billing_data_table.grant(
+            ingest_lambda,
+            "dynamodb:PutItem",
+            "dynamodb:BatchWriteItem",  # For batch operations
+        )
 
         # --- 4. S3 Event Notification to trigger Ingest Lambda ---
         # Configures the S3 bucket to invoke the Lambda when new objects are created.
@@ -159,10 +168,9 @@ class BillQuestMiscommitStack(Stack):
             environment={"TABLE_NAME": billing_data_table.table_name},
         )
 
-        # Grant the Query Lambda necessary permissions
-        billing_data_table.grant_read_data(
-            query_lambda
-        )  # Allow Lambda to read from DynamoDB
+        # Grant the Query Lambda necessary permissions with least privilege
+        # Only grant specific DynamoDB permissions needed: Query for reading data with filters
+        billing_data_table.grant(query_lambda, "dynamodb:Query")
 
         # --- 6. API Gateway for Frontend Access ---
         # Creates a REST API endpoint that your frontend will interact with.
@@ -410,9 +418,12 @@ class BillQuestMiscommitStack(Stack):
             environment={"TABLE_NAME": user_info_table.table_name},
         )
 
-        # Grant the Lambda necessary permissions
-        user_info_bucket.grant_read(update_user_info_lambda)
-        user_info_table.grant_write_data(update_user_info_lambda)
+        # Grant the Lambda necessary permissions with least privilege
+        # Only grant specific S3 permissions needed: GetObject for reading uploaded files
+        user_info_bucket.grant(update_user_info_lambda, "s3:GetObject")
+
+        # Only grant specific DynamoDB permissions needed: PutItem for updating user info
+        user_info_table.grant(update_user_info_lambda, "dynamodb:PutItem")
 
         # --- 16. S3 Event Notification to trigger Update User Info Lambda ---
         # Configures the S3 bucket to invoke the Lambda when new objects are created
@@ -434,8 +445,9 @@ class BillQuestMiscommitStack(Stack):
             environment={"TABLE_NAME": user_info_table.table_name},
         )
 
-        # Grant the Lambda necessary permissions to read from the user info table
-        user_info_table.grant_read_data(get_user_accounts_lambda)
+        # Grant the Lambda necessary permissions with least privilege
+        # Only grant specific DynamoDB permissions needed: GetItem for retrieving user accounts
+        user_info_table.grant(get_user_accounts_lambda, "dynamodb:GetItem")
 
         # --- 18. API Gateway for User Access ---
         # Creates a REST API endpoint for user account access
