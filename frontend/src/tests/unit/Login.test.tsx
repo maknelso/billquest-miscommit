@@ -1,15 +1,15 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import Login from '../pages/Login';
+import Login from '../../pages/Login';
 
 // Mock the auth module
-vi.mock('../aws/auth', () => ({
+vi.mock('../../aws/auth', () => ({
   signIn: vi.fn().mockResolvedValue({ isSignedIn: true })
 }));
 
 // Import the mocked module
-import { signIn } from '../aws/auth';
+import { signIn } from '../../aws/auth';
 
 describe('Login Component', () => {
   beforeEach(() => {
