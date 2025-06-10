@@ -74,27 +74,11 @@ def test_query_by_account():
                 "boto3.dynamodb.conditions": mock_boto3.dynamodb.conditions,
             },
         ):
-            # Mock the cors_config module for CORS headers
-            # This is used by the Lambda to add CORS headers to responses
-            mock_cors = MagicMock()
-            mock_cors.get_cors_headers.return_value = {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key",
-            }
-            sys.modules["lambda.utils.cors_config"] = mock_cors
-
             # Now import the app module after all mocks are in place
             import app
 
             # Replace the table with our mock to ensure queries use our mock
             app.table = mock_table
-
-            # Mock the generate_trace_id function for consistent tracing
-            app.generate_trace_id = MagicMock(return_value="test-trace-id")
-
-            # Mock the log_with_context function to prevent logging during tests
-            app.log_with_context = MagicMock()
 
             # Set environment variable for the Lambda function
             # This simulates how AWS Lambda provides configuration
@@ -128,5 +112,3 @@ def test_query_by_account():
             sys.path.remove(lambda_path)
         if "app" in sys.modules:
             del sys.modules["app"]
-        if "lambda.utils.cors_config" in sys.modules:
-            del sys.modules["lambda.utils.cors_config"]
