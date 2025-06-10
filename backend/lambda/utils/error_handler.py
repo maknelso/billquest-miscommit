@@ -1,5 +1,4 @@
-"""
-Error handling utilities for Lambda functions.
+"""Error handling utilities for Lambda functions.
 
 This module provides a standardized way to handle errors in Lambda functions,
 including custom exception types and a unified error response format for API Gateway.
@@ -9,7 +8,7 @@ It ensures consistent error handling, logging, and CORS headers across all Lambd
 import json
 import logging
 import traceback
-from typing import Dict, Any, Optional
+from typing import Any
 
 from .cors_config import get_cors_headers
 
@@ -19,8 +18,7 @@ logger.setLevel(logging.INFO)
 
 
 class LambdaError(Exception):
-    """
-    Base exception class for Lambda errors.
+    """Base exception class for Lambda errors.
 
     All custom error types should inherit from this class.
     It provides common attributes like status_code and error_type
@@ -31,18 +29,19 @@ class LambdaError(Exception):
         error_type (str): Error type identifier for API responses
         message (str): Human-readable error message
         details (dict): Additional error context information
+
     """
 
     status_code = 500
     error_type = "InternalServerError"
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
-        """
-        Initialize a new LambdaError.
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
+        """Initialize a new LambdaError.
 
         Args:
             message: Human-readable error message
             details: Additional context about the error (optional)
+
         """
         self.message = message
         self.details = details or {}
@@ -50,8 +49,7 @@ class LambdaError(Exception):
 
 
 class ValidationError(LambdaError):
-    """
-    Exception for input validation errors.
+    """Exception for input validation errors.
 
     Raised when user input fails validation checks.
     Returns HTTP 400 Bad Request.
@@ -62,8 +60,7 @@ class ValidationError(LambdaError):
 
 
 class ResourceNotFoundError(LambdaError):
-    """
-    Exception for resource not found errors.
+    """Exception for resource not found errors.
 
     Raised when a requested resource doesn't exist.
     Returns HTTP 404 Not Found.
@@ -74,8 +71,7 @@ class ResourceNotFoundError(LambdaError):
 
 
 class AuthorizationError(LambdaError):
-    """
-    Exception for authorization errors.
+    """Exception for authorization errors.
 
     Raised when a user doesn't have permission to access a resource.
     Returns HTTP 403 Forbidden.
@@ -85,9 +81,8 @@ class AuthorizationError(LambdaError):
     error_type = "AuthorizationError"
 
 
-def handle_error(e: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]:
-    """
-    Handle exceptions and return appropriate API Gateway response.
+def handle_error(e: Exception, context: dict[str, Any] = None) -> dict[str, Any]:
+    """Handle exceptions and return appropriate API Gateway response.
 
     This function processes exceptions, logs error details, and formats
     a standardized API Gateway response with proper status code and CORS headers.
@@ -98,6 +93,7 @@ def handle_error(e: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]
 
     Returns:
         API Gateway response object with appropriate status code, headers, and error details
+
     """
     # Initialize context if not provided
     context = context or {}

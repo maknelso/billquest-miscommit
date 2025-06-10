@@ -1,9 +1,7 @@
 import os
+
 import pytest
-import boto3
-import json
 import requests
-from botocore.exceptions import ClientError
 
 # Skip tests if not in a test environment
 pytestmark = pytest.mark.skipif(
@@ -28,8 +26,7 @@ TEST_EMAIL = "test@example.com"
 
 @pytest.fixture
 def auth_token():
-    """
-    Get authentication token for API requests.
+    """Get authentication token for API requests.
     In a real test, this would authenticate with Cognito.
     """
     # This is a placeholder - in a real test, you would get a token from Cognito

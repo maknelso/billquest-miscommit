@@ -1,13 +1,13 @@
 # lambda/query_data/app.py
+import csv
+import io
 import json
 import logging
 import os
-import csv
-import io
 from decimal import Decimal
 
 import boto3
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Attr, Key
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -20,11 +20,11 @@ table = dynamodb_client.Table(table_name)
 
 
 def get_cors_headers():
-    """
-    Return CORS headers for API responses.
+    """Return CORS headers for API responses.
 
     Returns:
         dict: Dictionary containing CORS headers allowing cross-origin requests
+
     """
     return {
         "Access-Control-Allow-Origin": "*",
@@ -35,8 +35,7 @@ def get_cors_headers():
 
 
 def format_response(status_code, body):
-    """
-    Format a standardized API Gateway response with CORS headers.
+    """Format a standardized API Gateway response with CORS headers.
 
     Args:
         status_code (int): HTTP status code
@@ -44,6 +43,7 @@ def format_response(status_code, body):
 
     Returns:
         dict: Formatted API Gateway response
+
     """
     return {
         "statusCode": status_code,
@@ -53,8 +53,7 @@ def format_response(status_code, body):
 
 
 class DecimalEncoder(json.JSONEncoder):
-    """
-    Custom JSON encoder that handles Decimal objects from DynamoDB.
+    """Custom JSON encoder that handles Decimal objects from DynamoDB.
     Converts Decimal values to float for JSON serialization.
     """
 
@@ -65,8 +64,7 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def lambda_handler(event, context):
-    """
-    Lambda function that queries billing data from DynamoDB based on various criteria.
+    """Lambda function that queries billing data from DynamoDB based on various criteria.
 
     This function supports three query types:
     1. account: Query by payer account ID, optionally filtered by invoice ID or bill period
@@ -81,6 +79,7 @@ def lambda_handler(event, context):
 
     Returns:
         dict: API Gateway response with status code, headers, and body
+
     """
     # Log the incoming event
     logger.info(f"Received event: {json.dumps(event)}")
@@ -134,8 +133,7 @@ def lambda_handler(event, context):
 
 
 def query_by_account_items(params):
-    """
-    Query billing data by payer account ID with optional filters.
+    """Query billing data by payer account ID with optional filters.
 
     Args:
         params (dict): Query parameters containing:
@@ -148,6 +146,7 @@ def query_by_account_items(params):
 
     Raises:
         ValueError: If accountId parameter is missing
+
     """
     account_id = params.get("accountId")
     invoice_id = params.get("invoiceId")
@@ -198,8 +197,7 @@ def query_by_account_items(params):
 
 
 def query_by_date_items(params):
-    """
-    Query billing data by bill period start date with optional product filter.
+    """Query billing data by bill period start date with optional product filter.
 
     Args:
         params (dict): Query parameters containing:
@@ -211,6 +209,7 @@ def query_by_date_items(params):
 
     Raises:
         ValueError: If date parameter is missing
+
     """
     date = params.get("date")
     product = params.get("product")
@@ -229,8 +228,7 @@ def query_by_date_items(params):
 
 
 def query_by_invoice_items(params):
-    """
-    Query billing data by invoice ID.
+    """Query billing data by invoice ID.
 
     Args:
         params (dict): Query parameters containing:
@@ -241,6 +239,7 @@ def query_by_invoice_items(params):
 
     Raises:
         ValueError: If invoiceId parameter is missing
+
     """
     invoice_id = params.get("invoiceId")
 
@@ -255,8 +254,7 @@ def query_by_invoice_items(params):
 
 
 def generate_filename(items):
-    """
-    Generate a descriptive filename for the CSV download based on the data.
+    """Generate a descriptive filename for the CSV download based on the data.
 
     Creates a filename that reflects the content of the data, using account ID,
     invoice ID, or date information when available.
@@ -266,6 +264,7 @@ def generate_filename(items):
 
     Returns:
         str: Generated filename for the CSV file
+
     """
     if not items:
         return "billing_data.csv"
@@ -295,12 +294,11 @@ def generate_filename(items):
         else:
             return f"billing_{account_id}.csv"
     else:
-        return f"billing_data_multiple_accounts.csv"
+        return "billing_data_multiple_accounts.csv"
 
 
 def summarize_data(items):
-    """
-    Generate a summary of the billing data for the JSON response.
+    """Generate a summary of the billing data for the JSON response.
 
     Calculates metrics like unique accounts, invoices, dates, products,
     and total cost from the billing data items.
@@ -310,6 +308,7 @@ def summarize_data(items):
 
     Returns:
         dict: Summary statistics about the billing data
+
     """
     if not items:
         return {}
@@ -347,8 +346,7 @@ def summarize_data(items):
 
 
 def format_csv_response(items):
-    """
-    Format billing data as a CSV file for download.
+    """Format billing data as a CSV file for download.
 
     Creates a CSV file from the billing data items and returns it as an
     API Gateway response with appropriate headers for file download.
@@ -358,6 +356,7 @@ def format_csv_response(items):
 
     Returns:
         dict: API Gateway response containing the CSV file
+
     """
     if not items:
         # Return empty CSV with CORS headers

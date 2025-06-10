@@ -31,11 +31,11 @@ CORS_CONFIG = {
 
 
 def get_cors_headers():
-    """
-    Get CORS headers based on the current environment
+    """Get CORS headers based on the current environment
 
     Returns:
         dict: CORS headers for the current environment
+
     """
     config = CORS_CONFIG.get(ENV, CORS_CONFIG["dev"])
 

@@ -1,11 +1,7 @@
 import os
-import pytest
-import time
 import uuid
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+
+import pytest
 
 # Skip tests if not in a test environment
 pytestmark = pytest.mark.skipif(
@@ -34,8 +30,7 @@ def driver():
 
 
 def test_user_signup_and_login(driver):
-    """
-    Test user signup and login flow.
+    """Test user signup and login flow.
 
     This test:
     1. Navigates to the signup page

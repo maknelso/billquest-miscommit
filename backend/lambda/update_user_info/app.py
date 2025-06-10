@@ -1,9 +1,10 @@
+import csv
 import json
 import logging
 import os
-import csv
-import boto3
 from urllib.parse import unquote_plus
+
+import boto3
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -19,8 +20,7 @@ s3_client = boto3.client("s3")
 
 
 def lambda_handler(event, context):
-    """
-    Lambda function that processes CSV files uploaded to S3 and updates DynamoDB.
+    """Lambda function that processes CSV files uploaded to S3 and updates DynamoDB.
 
     This function:
     1. Downloads a CSV file from S3 when it's uploaded
@@ -35,6 +35,7 @@ def lambda_handler(event, context):
 
     Returns:
         dict: Response indicating success or failure with processing statistics
+
     """
     try:
         # Get bucket and key from the S3 event

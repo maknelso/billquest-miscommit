@@ -1,12 +1,13 @@
-from typing import Dict, Any, List, Optional, Union, Callable
+from collections.abc import Callable
+from typing import Any
+
 from .error_handler import ValidationError
 
 
 def validate_required_params(
-    params: Dict[str, Any], required_fields: List[str]
+    params: dict[str, Any], required_fields: list[str]
 ) -> None:
-    """
-    Validate that all required parameters are present
+    """Validate that all required parameters are present
 
     Args:
         params: Dictionary of parameters to validate
@@ -14,6 +15,7 @@ def validate_required_params(
 
     Raises:
         ValidationError: If any required field is missing
+
     """
     missing_fields = [field for field in required_fields if field not in params]
 
@@ -27,13 +29,12 @@ def validate_required_params(
 
 
 def validate_field_type(
-    params: Dict[str, Any],
+    params: dict[str, Any],
     field: str,
-    expected_type: Union[type, tuple],
+    expected_type: type | tuple,
     allow_none: bool = False,
 ) -> None:
-    """
-    Validate that a field is of the expected type
+    """Validate that a field is of the expected type
 
     Args:
         params: Dictionary of parameters to validate
@@ -43,6 +44,7 @@ def validate_field_type(
 
     Raises:
         ValidationError: If the field is not of the expected type
+
     """
     if field not in params:
         return
@@ -61,14 +63,13 @@ def validate_field_type(
 
 
 def validate_field_format(
-    params: Dict[str, Any],
+    params: dict[str, Any],
     field: str,
     validator: Callable[[Any], bool],
     error_message: str,
     allow_none: bool = False,
 ) -> None:
-    """
-    Validate that a field matches a specific format using a validator function
+    """Validate that a field matches a specific format using a validator function
 
     Args:
         params: Dictionary of parameters to validate
@@ -79,6 +80,7 @@ def validate_field_format(
 
     Raises:
         ValidationError: If the field doesn't match the expected format
+
     """
     if field not in params:
         return

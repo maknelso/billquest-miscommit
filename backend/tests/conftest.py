@@ -1,5 +1,4 @@
-"""
-Test configuration and fixtures for BillQuest application.
+"""Test configuration and fixtures for BillQuest application.
 
 This module provides pytest fixtures for mocking AWS services used in the BillQuest application.
 It uses the moto library to create mock AWS resources that can be used in unit tests
@@ -15,15 +14,15 @@ Fixtures:
 """
 
 import os
-import pytest
+
 import boto3
-from moto import mock_dynamodb, mock_s3
+import moto
+import pytest
 
 
 @pytest.fixture(scope="function")
 def aws_credentials():
-    """
-    Mocked AWS Credentials for boto3.
+    """Mocked AWS Credentials for boto3.
 
     Sets environment variables with fake credentials that will be used by boto3
     when creating AWS service clients and resources.
@@ -37,32 +36,29 @@ def aws_credentials():
 
 @pytest.fixture(scope="function")
 def dynamodb(aws_credentials):
-    """
-    DynamoDB mock fixture.
+    """DynamoDB mock fixture.
 
     Creates a mock DynamoDB service using moto that intercepts boto3 calls.
     This fixture depends on aws_credentials.
     """
-    with mock_dynamodb():
+    with moto.mock_aws():
         yield boto3.resource("dynamodb", region_name="us-east-1")
 
 
 @pytest.fixture(scope="function")
 def s3(aws_credentials):
-    """
-    S3 mock fixture.
+    """S3 mock fixture.
 
     Creates a mock S3 service using moto that intercepts boto3 calls.
     This fixture depends on aws_credentials.
     """
-    with mock_s3():
+    with moto.mock_aws():
         yield boto3.resource("s3", region_name="us-east-1")
 
 
 @pytest.fixture(scope="function")
 def billing_table(dynamodb):
-    """
-    Create a mock billing data table.
+    """Create a mock billing data table.
 
     Creates a DynamoDB table with the same schema as the production billing data table,
     including the primary key (payer_account_id, invoice_id#product_code) and
@@ -106,8 +102,7 @@ def billing_table(dynamodb):
 
 @pytest.fixture(scope="function")
 def user_info_table(dynamodb):
-    """
-    Create a mock user info table.
+    """Create a mock user info table.
 
     Creates a DynamoDB table with the same schema as the production user info table,
     with email as the primary key.
@@ -127,8 +122,7 @@ def user_info_table(dynamodb):
 
 @pytest.fixture(scope="function")
 def s3_buckets(s3):
-    """
-    Create mock S3 buckets.
+    """Create mock S3 buckets.
 
     Creates the three S3 buckets used by the application:
     - Raw files bucket: For uploading billing data CSV files

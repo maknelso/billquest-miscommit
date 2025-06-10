@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -15,11 +16,11 @@ table = dynamodb_client.Table(table_name)
 
 
 def get_cors_headers():
-    """
-    Return CORS headers for API responses.
+    """Return CORS headers for API responses.
 
     Returns:
         dict: Dictionary containing CORS headers allowing cross-origin requests
+
     """
     return {
         "Access-Control-Allow-Origin": "*",
@@ -30,8 +31,7 @@ def get_cors_headers():
 
 
 def format_response(status_code, body):
-    """
-    Format a standardized API Gateway response with CORS headers.
+    """Format a standardized API Gateway response with CORS headers.
 
     Args:
         status_code (int): HTTP status code
@@ -39,6 +39,7 @@ def format_response(status_code, body):
 
     Returns:
         dict: Formatted API Gateway response
+
     """
     return {
         "statusCode": status_code,
@@ -48,8 +49,7 @@ def format_response(status_code, body):
 
 
 def lambda_handler(event, context):
-    """
-    Lambda function that retrieves payer_account_ids associated with an email
+    """Lambda function that retrieves payer_account_ids associated with an email
     from the DynamoDB table.
 
     This function:
@@ -63,6 +63,7 @@ def lambda_handler(event, context):
 
     Returns:
         dict: API Gateway response with status code, headers, and body
+
     """
     # Log the incoming event
     logger.info(f"Received event: {json.dumps(event)}")

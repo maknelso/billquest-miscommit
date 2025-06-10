@@ -1,22 +1,23 @@
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, Callable
+from collections.abc import Callable
 from functools import wraps
+from typing import Any
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def log_event(event: Dict[str, Any], context: Any = None, level: str = "INFO") -> None:
-    """
-    Log an API Gateway event with relevant information
+def log_event(event: dict[str, Any], context: Any = None, level: str = "INFO") -> None:
+    """Log an API Gateway event with relevant information
 
     Args:
         event: API Gateway event
         context: Lambda context
         level: Logging level (INFO, WARNING, ERROR)
+
     """
     # Extract useful information from the event
     log_data = {
@@ -57,14 +58,14 @@ def log_event(event: Dict[str, Any], context: Any = None, level: str = "INFO") -
 
 
 def log_lambda_execution(func: Callable) -> Callable:
-    """
-    Decorator to log Lambda execution details
+    """Decorator to log Lambda execution details
 
     Args:
         func: Lambda handler function
 
     Returns:
         Wrapped function with logging
+
     """
 
     @wraps(func)

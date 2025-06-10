@@ -1,9 +1,8 @@
-import os
-import json
-import time
 import logging
+import os
+import time
+
 import boto3
-from typing import Dict, Any, List, Optional, Union
 
 # Configure logging
 logger = logging.getLogger()
@@ -25,12 +24,11 @@ else:
 def put_metric(
     namespace: str,
     metric_name: str,
-    value: Union[int, float],
+    value: int | float,
     unit: str = "Count",
-    dimensions: Optional[List[Dict[str, str]]] = None,
+    dimensions: list[dict[str, str]] | None = None,
 ) -> bool:
-    """
-    Put a metric to CloudWatch
+    """Put a metric to CloudWatch
 
     Args:
         namespace: CloudWatch namespace
@@ -41,6 +39,7 @@ def put_metric(
 
     Returns:
         True if successful, False otherwise
+
     """
     if not cloudwatch:
         logger.debug(
@@ -75,13 +74,13 @@ def put_metric(
 
 
 def track_latency(func_name: str, duration_ms: float, success: bool = True) -> None:
-    """
-    Track function latency
+    """Track function latency
 
     Args:
         func_name: Function name
         duration_ms: Duration in milliseconds
         success: Whether the function executed successfully
+
     """
     # Get function name from environment if not provided
     if not func_name and IN_LAMBDA:
@@ -118,12 +117,11 @@ def track_latency(func_name: str, duration_ms: float, success: bool = True) -> N
 def track_business_metric(
     category: str,
     metric_name: str,
-    value: Union[int, float] = 1,
+    value: int | float = 1,
     unit: str = "Count",
-    dimensions: Optional[Dict[str, str]] = None,
+    dimensions: dict[str, str] | None = None,
 ) -> None:
-    """
-    Track a business metric
+    """Track a business metric
 
     Args:
         category: Metric category
@@ -131,6 +129,7 @@ def track_business_metric(
         value: Metric value
         unit: Metric unit
         dimensions: Additional dimensions
+
     """
     # Format dimensions
     formatted_dimensions = []
@@ -151,15 +150,15 @@ def track_business_metric(
 
 
 def track_error(
-    error_type: str, function_name: Optional[str] = None, count: int = 1
+    error_type: str, function_name: str | None = None, count: int = 1
 ) -> None:
-    """
-    Track an error
+    """Track an error
 
     Args:
         error_type: Error type
         function_name: Function name
         count: Error count
+
     """
     # Get function name from environment if not provided
     if not function_name and IN_LAMBDA:

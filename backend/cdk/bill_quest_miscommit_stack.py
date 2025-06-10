@@ -8,26 +8,26 @@ from aws_cdk import (
     aws_cloudfront_origins as origins,
     aws_cloudwatch as cloudwatch,
     aws_cloudwatch_actions as cloudwatch_actions,
-    aws_sns as sns,
     aws_cognito as cognito,  # For user authentication
     aws_dynamodb as dynamodb,
     aws_lambda as lambda_,
     aws_s3 as s3,
     aws_s3_deployment as s3deploy,
     aws_s3_notifications as s3n,
+    aws_sns as sns,
 )
 from constructs import Construct
 
 # Import centralized configuration
 from backend.config.config import (
-    STACK_PREFIX,
-    DYNAMODB_TABLES,
-    S3_BUCKETS,
     API_GATEWAY,
-    LAMBDA_CONFIG,
     COGNITO_CONFIG,
-    REMOVAL_POLICY,
     CORS_ALLOW_ALL_ORIGINS,
+    DYNAMODB_TABLES,
+    LAMBDA_CONFIG,
+    REMOVAL_POLICY,
+    S3_BUCKETS,
+    STACK_PREFIX,
 )
 
 

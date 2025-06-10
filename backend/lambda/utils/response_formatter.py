@@ -1,6 +1,6 @@
 import json
 from decimal import Decimal
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from .cors_config import get_cors_headers
 
@@ -15,10 +15,9 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def format_response(
-    status_code: int = 200, body: Any = None, headers: Optional[Dict[str, str]] = None
-) -> Dict[str, Any]:
-    """
-    Format a standard API Gateway response
+    status_code: int = 200, body: Any = None, headers: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """Format a standard API Gateway response
 
     Args:
         status_code: HTTP status code
@@ -27,6 +26,7 @@ def format_response(
 
     Returns:
         API Gateway response object
+
     """
     # Get environment-specific CORS headers
     cors_headers = get_cors_headers()
@@ -50,11 +50,10 @@ def format_response(
 
 def format_success_response(
     data: Any,
-    metadata: Optional[Dict[str, Any]] = None,
-    headers: Optional[Dict[str, str]] = None,
-) -> Dict[str, Any]:
-    """
-    Format a successful response with data and optional metadata
+    metadata: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Format a successful response with data and optional metadata
 
     Args:
         data: The main response data
@@ -63,6 +62,7 @@ def format_success_response(
 
     Returns:
         API Gateway response object
+
     """
     response_body = {"data": data}
 
@@ -75,10 +75,9 @@ def format_success_response(
 def format_csv_response(
     csv_content: str,
     filename: str = "data.csv",
-    headers: Optional[Dict[str, str]] = None,
-) -> Dict[str, Any]:
-    """
-    Format a response containing CSV data
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Format a response containing CSV data
 
     Args:
         csv_content: The CSV content as a string
@@ -87,6 +86,7 @@ def format_csv_response(
 
     Returns:
         API Gateway response object
+
     """
     # CSV-specific headers
     csv_headers = {

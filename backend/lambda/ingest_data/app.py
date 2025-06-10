@@ -20,8 +20,7 @@ table = dynamodb_client.Table(table_name)
 
 
 def check_if_processed(bucket, key):
-    """
-    Check if a file was already processed by looking at its metadata.
+    """Check if a file was already processed by looking at its metadata.
 
     Args:
         bucket (str): S3 bucket name
@@ -29,6 +28,7 @@ def check_if_processed(bucket, key):
 
     Returns:
         bool: True if the file was already processed, False otherwise
+
     """
     try:
         response = s3_client.head_object(Bucket=bucket, Key=key)
@@ -40,12 +40,12 @@ def check_if_processed(bucket, key):
 
 
 def mark_file_as_processed(bucket, key):
-    """
-    Mark a file as processed by setting metadata on the S3 object.
+    """Mark a file as processed by setting metadata on the S3 object.
 
     Args:
         bucket (str): S3 bucket name
         key (str): S3 object key
+
     """
     copy_source = {"Bucket": bucket, "Key": key}
     s3_client.copy_object(
@@ -58,8 +58,7 @@ def mark_file_as_processed(bucket, key):
 
 
 def lambda_handler(event, context):
-    """
-    Lambda function triggered by S3 events to process billing data CSV files.
+    """Lambda function triggered by S3 events to process billing data CSV files.
 
     This function:
     1. Checks if the file was already processed
@@ -74,6 +73,7 @@ def lambda_handler(event, context):
 
     Returns:
         dict: Response indicating success or failure
+
     """
     logger.info(f"Received event: {json.dumps(event)}")
 
