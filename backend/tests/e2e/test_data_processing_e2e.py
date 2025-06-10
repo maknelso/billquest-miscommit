@@ -1,5 +1,4 @@
-"""
-End-to-End test for the complete data processing flow.
+"""End-to-End test for the complete data processing flow.
 
 This test verifies the entire data processing pipeline from file upload to data retrieval.
 It uploads a test CSV file to S3, waits for Lambda to process it, and then queries the API
@@ -9,15 +8,15 @@ Tests are skipped unless the ENVIRONMENT variable is set to "test" to prevent
 accidental execution against production resources.
 """
 
+import csv
+import io
 import os
 import time
 import uuid
-import pytest
+
 import boto3
+import pytest
 import requests
-import csv
-import io
-from decimal import Decimal
 
 # Skip tests if not in a test environment
 pytestmark = pytest.mark.skipif(
@@ -58,8 +57,7 @@ def dynamodb_client():
 
 
 def test_end_to_end_data_flow(s3_client, dynamodb_client):
-    """
-    Test the complete data flow from file upload to data retrieval.
+    """Test the complete data flow from file upload to data retrieval.
 
     This test:
     1. Creates a test CSV file with billing data
@@ -115,7 +113,7 @@ def test_end_to_end_data_flow(s3_client, dynamodb_client):
 
             # Wait before retrying
             time.sleep(2)
-            print(f"Waiting... ({i+1}/{max_retries})")
+            print(f"Waiting... ({i + 1}/{max_retries})")
 
         assert processed, f"File was not processed after {max_retries * 2} seconds"
 

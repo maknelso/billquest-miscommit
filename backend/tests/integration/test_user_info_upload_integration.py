@@ -1,5 +1,4 @@
-"""
-Integration tests for user info upload functionality.
+"""Integration tests for user info upload functionality.
 
 This module contains integration tests that verify the user info upload process
 works correctly. These tests upload actual CSV files to the user access S3 bucket
@@ -9,13 +8,14 @@ Tests are skipped unless the ENVIRONMENT variable is set to "test" to prevent
 accidental execution against production resources.
 """
 
+import csv
+import io
 import os
 import time
 import uuid
-import pytest
+
 import boto3
-import csv
-import io
+import pytest
 
 # Skip tests if not in a test environment
 pytestmark = pytest.mark.skipif(
@@ -39,29 +39,28 @@ TEST_ACCOUNT_IDS = ["123456789012", "210987654321"]
 
 @pytest.fixture
 def s3_client():
-    """
-    Create an S3 client for test operations.
+    """Create an S3 client for test operations.
 
     Returns:
         boto3.client: Configured S3 client
+
     """
     return boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture
 def dynamodb_client():
-    """
-    Create a DynamoDB client for test operations.
+    """Create a DynamoDB client for test operations.
 
     Returns:
         boto3.resource: Configured DynamoDB resource
+
     """
     return boto3.resource("dynamodb", region_name="us-east-1")
 
 
 def test_user_info_upload_to_dynamodb(s3_client, dynamodb_client):
-    """
-    Test that uploading a user info CSV file to S3 triggers the Lambda function
+    """Test that uploading a user info CSV file to S3 triggers the Lambda function
     and updates the user_info DynamoDB table.
 
     This test:
@@ -73,6 +72,7 @@ def test_user_info_upload_to_dynamodb(s3_client, dynamodb_client):
     Args:
         s3_client: Fixture providing the S3 client
         dynamodb_client: Fixture providing the DynamoDB client
+
     """
     # Generate a unique test file name
     test_file_key = f"test-user-info-{uuid.uuid4()}.csv"
@@ -127,8 +127,7 @@ def test_user_info_upload_to_dynamodb(s3_client, dynamodb_client):
 
 
 def test_user_info_update_existing_user(s3_client, dynamodb_client):
-    """
-    Test that uploading a user info CSV file updates an existing user's account IDs.
+    """Test that uploading a user info CSV file updates an existing user's account IDs.
 
     This test:
     1. Creates an initial user record in DynamoDB
@@ -140,6 +139,7 @@ def test_user_info_update_existing_user(s3_client, dynamodb_client):
     Args:
         s3_client: Fixture providing the S3 client
         dynamodb_client: Fixture providing the DynamoDB client
+
     """
     # Generate a unique test file name and email
     test_file_key = f"test-user-info-update-{uuid.uuid4()}.csv"

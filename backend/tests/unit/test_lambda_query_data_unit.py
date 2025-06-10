@@ -1,21 +1,18 @@
-"""
-Unit tests for the query_data Lambda function.
+"""Unit tests for the query_data Lambda function.
 
 This module tests the Lambda function that queries billing data from DynamoDB.
 It mocks all AWS dependencies to isolate the function's business logic.
 """
 
 import json
-import pytest
 import os
 import sys
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def test_query_by_account():
-    """
-    Test the Lambda function's ability to query billing data by account ID.
+    """Test the Lambda function's ability to query billing data by account ID.
 
     This test verifies that:
     1. The function correctly processes 'account' query type requests

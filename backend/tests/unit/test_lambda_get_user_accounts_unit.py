@@ -1,15 +1,13 @@
-"""
-Unit tests for the get_user_accounts Lambda function.
+"""Unit tests for the get_user_accounts Lambda function.
 
 This module tests the Lambda function that retrieves user account IDs from DynamoDB.
 It mocks all AWS dependencies to isolate the function's business logic.
 """
 
 import json
-import pytest
 import os
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def test_get_user_accounts_success():

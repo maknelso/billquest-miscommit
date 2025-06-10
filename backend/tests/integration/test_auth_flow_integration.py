@@ -1,5 +1,4 @@
-"""
-Integration tests for authentication flow.
+"""Integration tests for authentication flow.
 
 This module contains integration tests that verify the Cognito authentication flow
 works correctly. These tests create actual users, authenticate them, and verify
@@ -10,12 +9,11 @@ accidental execution against production resources.
 """
 
 import os
-import time
 import uuid
-import pytest
+
 import boto3
+import pytest
 import requests
-import json
 from botocore.exceptions import ClientError
 
 # Skip tests if not in a test environment
@@ -43,19 +41,18 @@ TEST_ACCOUNT_ID = "EUINFR25-266134"
 
 @pytest.fixture
 def cognito_idp_client():
-    """
-    Create a Cognito Identity Provider client for test operations.
+    """Create a Cognito Identity Provider client for test operations.
 
     Returns:
         boto3.client: Configured Cognito IDP client
+
     """
     return boto3.client("cognito-idp", region_name="us-east-1")
 
 
 @pytest.fixture
 def test_user(cognito_idp_client):
-    """
-    Create a test user in Cognito and clean up after the test.
+    """Create a test user in Cognito and clean up after the test.
 
     This fixture:
     1. Creates a test user in Cognito
@@ -65,6 +62,7 @@ def test_user(cognito_idp_client):
 
     Returns:
         dict: User credentials (username, email, password)
+
     """
     # Create the user
     try:
@@ -105,8 +103,7 @@ def test_user(cognito_idp_client):
 
 
 def test_user_authentication_flow(cognito_idp_client, test_user):
-    """
-    Test the complete user authentication flow.
+    """Test the complete user authentication flow.
 
     This test:
     1. Authenticates a user with Cognito
@@ -117,6 +114,7 @@ def test_user_authentication_flow(cognito_idp_client, test_user):
     Args:
         cognito_idp_client: Fixture providing the Cognito IDP client
         test_user: Fixture providing test user credentials
+
     """
     try:
         # Try to authenticate using USER_PASSWORD_AUTH flow
@@ -172,8 +170,7 @@ def test_user_authentication_flow(cognito_idp_client, test_user):
 
 
 def test_unauthorized_access():
-    """
-    Test that protected endpoints reject unauthorized access.
+    """Test that protected endpoints reject unauthorized access.
 
     This test:
     1. Attempts to access a protected API endpoint without authentication

@@ -1,5 +1,4 @@
-"""
-Integration tests for BillQuest API Gateway endpoints.
+"""Integration tests for BillQuest API Gateway endpoints.
 
 This module contains integration tests that verify the deployed API Gateway endpoints
 are functioning correctly. These tests make actual HTTP requests to the deployed APIs
@@ -11,6 +10,7 @@ accidental execution against production endpoints.
 """
 
 import os
+
 import pytest
 import requests
 
@@ -40,22 +40,21 @@ TEST_EMAIL = "test@example.com"
 
 @pytest.fixture
 def auth_token():
-    """
-    Provide an authentication token for API requests.
+    """Provide an authentication token for API requests.
 
     In a real test environment, this would authenticate with Cognito and
     return a valid JWT token. For now, it returns a placeholder value.
 
     Returns:
         str: Authentication token to use in request headers
+
     """
     # This is a placeholder - in a real test, you would get a token from Cognito
     return "test-token"
 
 
 def test_query_endpoint_returns_200(auth_token):
-    """
-    Test that the query endpoint returns billing data successfully.
+    """Test that the query endpoint returns billing data successfully.
 
     This test verifies that:
     1. The query endpoint is accessible
@@ -65,6 +64,7 @@ def test_query_endpoint_returns_200(auth_token):
 
     Args:
         auth_token: Fixture providing the authentication token
+
     """
     # Set up authentication header as would be required in production
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -84,8 +84,7 @@ def test_query_endpoint_returns_200(auth_token):
 
 
 def test_user_accounts_endpoint_returns_user_data(auth_token):
-    """
-    Test that the user accounts endpoint returns user account mappings.
+    """Test that the user accounts endpoint returns user account mappings.
 
     This test verifies that:
     1. The user-accounts endpoint is accessible
@@ -95,6 +94,7 @@ def test_user_accounts_endpoint_returns_user_data(auth_token):
 
     Args:
         auth_token: Fixture providing the authentication token
+
     """
     # Set up authentication header as would be required in production
     headers = {"Authorization": f"Bearer {auth_token}"}

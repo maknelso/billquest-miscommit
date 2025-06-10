@@ -1,5 +1,4 @@
-"""
-Integration tests for S3 upload functionality.
+"""Integration tests for S3 upload functionality.
 
 This module contains integration tests that verify the S3 upload triggers Lambda functions
 and updates DynamoDB correctly. These tests upload actual files to S3 buckets and verify
@@ -9,13 +8,14 @@ Tests are skipped unless the ENVIRONMENT variable is set to "test" to prevent
 accidental execution against production resources.
 """
 
+import csv
+import io
 import os
 import time
 import uuid
-import pytest
+
 import boto3
-import csv
-import io
+import pytest
 
 # Skip tests if not in a test environment
 pytestmark = pytest.mark.skipif(
@@ -44,29 +44,28 @@ TEST_EMAIL = f"test-{uuid.uuid4()}@example.com"
 
 @pytest.fixture
 def s3_client():
-    """
-    Create an S3 client for test operations.
+    """Create an S3 client for test operations.
 
     Returns:
         boto3.client: Configured S3 client
+
     """
     return boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture
 def dynamodb_client():
-    """
-    Create a DynamoDB client for test operations.
+    """Create a DynamoDB client for test operations.
 
     Returns:
         boto3.resource: Configured DynamoDB resource
+
     """
     return boto3.resource("dynamodb", region_name="us-east-1")
 
 
 def test_billing_data_upload_to_dynamodb(s3_client, dynamodb_client):
-    """
-    Test that uploading a billing data CSV file to S3 triggers the Lambda function
+    """Test that uploading a billing data CSV file to S3 triggers the Lambda function
     and updates the DynamoDB table.
 
     This test:
@@ -79,6 +78,7 @@ def test_billing_data_upload_to_dynamodb(s3_client, dynamodb_client):
     Args:
         s3_client: Fixture providing the S3 client
         dynamodb_client: Fixture providing the DynamoDB client
+
     """
     # Generate a unique test file name
     test_file_key = f"test-billing-data-{uuid.uuid4()}.csv"
@@ -158,8 +158,7 @@ def test_billing_data_upload_to_dynamodb(s3_client, dynamodb_client):
 
 
 def test_user_info_upload_to_dynamodb(s3_client, dynamodb_client):
-    """
-    Test that uploading a user info CSV file to S3 triggers the Lambda function
+    """Test that uploading a user info CSV file to S3 triggers the Lambda function
     and updates the user_info DynamoDB table.
 
     This test:
@@ -171,6 +170,7 @@ def test_user_info_upload_to_dynamodb(s3_client, dynamodb_client):
     Args:
         s3_client: Fixture providing the S3 client
         dynamodb_client: Fixture providing the DynamoDB client
+
     """
     # Generate a unique test file name and email
     test_file_key = f"test-user-info-{uuid.uuid4()}.csv"

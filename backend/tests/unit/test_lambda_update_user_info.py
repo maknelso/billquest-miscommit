@@ -1,15 +1,13 @@
-"""
-Unit tests for the update_user_info Lambda function.
+"""Unit tests for the update_user_info Lambda function.
 
 This module tests the Lambda function that processes CSV files from S3 and updates user info in DynamoDB.
 It mocks all AWS dependencies to isolate the function's business logic.
 """
 
 import json
-import pytest
 import os
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def test_process_csv_file():

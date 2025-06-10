@@ -1,5 +1,4 @@
-"""
-Integration tests for protected API endpoints.
+"""Integration tests for protected API endpoints.
 
 This module contains integration tests that verify the protected API endpoints
 require proper authentication and authorization. These tests make actual HTTP requests
@@ -10,9 +9,9 @@ accidental execution against production endpoints.
 """
 
 import os
+
 import pytest
 import requests
-import json
 
 # Skip tests if not in a test environment
 pytestmark = pytest.mark.skipif(
@@ -38,22 +37,21 @@ TEST_EMAIL = "test@example.com"
 
 @pytest.fixture
 def auth_token():
-    """
-    Provide a mock authentication token for testing.
+    """Provide a mock authentication token for testing.
 
     In a real integration test, this would authenticate with Cognito.
     For now, we'll use a mock token since the auth flow isn't enabled.
 
     Returns:
         str: Mock authentication token
+
     """
     # This is just a placeholder - in a real test, you would get a token from Cognito
     return "mock-token"
 
 
 def test_protected_endpoint_requires_auth():
-    """
-    Test if the endpoint is protected.
+    """Test if the endpoint is protected.
 
     This test checks if the endpoint requires authentication.
     If it doesn't, the test is marked as skipped with a message.
@@ -74,8 +72,7 @@ def test_protected_endpoint_requires_auth():
 
 
 def test_invalid_token_rejected():
-    """
-    Test if invalid tokens are rejected.
+    """Test if invalid tokens are rejected.
 
     This test checks if the endpoint rejects invalid tokens.
     If it doesn't, the test is marked as skipped with a message.

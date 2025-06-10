@@ -5,11 +5,9 @@ It mocks all AWS dependencies to isolate the function's business logic.
 """
 
 import json
-import pytest
 import os
 import sys
-from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def test_process_csv_file():
