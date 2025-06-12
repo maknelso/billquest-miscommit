@@ -1,0 +1,76 @@
+{
+  "Id": "E1JKSAR8RH0400",
+  "DistributionConfig": {
+    "CallerReference": "cli-update-1749677000",
+    "Origins": {
+      "Quantity": 1,
+      "Items": [
+        {
+          "Id": "BillQuestMiscommitStackWebsiteDistributionOrigin10F806DE7",
+          "DomainName": "billquestmiscommitstack-websitebucket-nelmak.s3.us-east-1.amazonaws.com",
+          "OriginPath": "",
+          "CustomHeaders": {
+            "Quantity": 0
+          },
+          "S3OriginConfig": {
+            "OriginAccessIdentity": ""
+          },
+          "ConnectionAttempts": 3,
+          "ConnectionTimeout": 10,
+          "OriginShield": {
+            "Enabled": false
+          },
+          "OriginAccessControlId": "E1WM4TCB947I2Y"
+        }
+      ]
+    },
+    "DefaultCacheBehavior": {
+      "TargetOriginId": "BillQuestMiscommitStackWebsiteDistributionOrigin10F806DE7",
+      "TrustedSigners": {
+        "Enabled": false,
+        "Quantity": 0
+      },
+      "TrustedKeyGroups": {
+        "Enabled": false,
+        "Quantity": 0
+      },
+      "ViewerProtocolPolicy": "redirect-to-https",
+      "AllowedMethods": {
+        "Quantity": 2,
+        "Items": [
+          "HEAD",
+          "GET"
+        ],
+        "CachedMethods": {
+          "Quantity": 2,
+          "Items": [
+            "HEAD",
+            "GET"
+          ]
+        }
+      },
+      "SmoothStreaming": false,
+      "Compress": true,
+      "LambdaFunctionAssociations": {
+        "Quantity": 0
+      },
+      "FunctionAssociations": {
+        "Quantity": 0
+      },
+      "FieldLevelEncryptionId": "",
+      "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    },
+    "DefaultRootObject": "index.html",
+    "CustomErrorResponses": {
+      "Quantity": 1,
+      "Items": [
+        {
+          "ErrorCode": 403,
+          "ResponsePagePath": "/index.html",
+          "ResponseCode": "200",
+          "ErrorCachingMinTTL": 10
+        }
+      ]
+    }
+  }
+}

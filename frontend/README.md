@@ -1,54 +1,67 @@
-# React + TypeScript + Vite
+# BillQuest Frontend Deployment Guide
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Production Website
 
-Currently, two official plugins are available:
+CloudFront website link: https://d2qvugcag2us70.cloudfront.net/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Demo credentials:
+- Username: nelmak@amazon.com
+- Password: Test123!
 
-## Expanding the ESLint configuration
+## Local Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+To run the application locally:
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+This will start the development server at http://localhost:5173
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Production Deployment
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+### Option 1: Using AWS CDK (Recommended)
+
+The project is configured to deploy automatically using AWS CDK. The CDK stack will:
+1. Create an S3 bucket for hosting
+2. Set up CloudFront for content delivery
+3. Configure Cognito for authentication
+
+To deploy using CDK:
+
+```bash
+# From the project root
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r ../requirements.txt
+cdk deploy
 ```
+
+### Option 2: Manual S3 Deployment
+
+If you encounter issues with CDK deployment, you can manually deploy to S3:
+
+```bash
+# From the project root
+chmod +x frontend/deploy-to-s3.sh
+./frontend/deploy-to-s3.sh
+```
+
+This script will:
+1. Build the Vite application
+2. Upload the build files to the S3 bucket
+3. (Optional) Create a CloudFront invalidation
+
+## Accessing Your Deployed Application
+
+After deployment:
+- If using CDK: The CloudFront URL will be shown in the CDK outputs
+- If using manual S3 deployment: Access via the S3 website endpoint or CloudFront URL
+
+## Updating API Endpoints
+
+If deploying to a different environment, update the API endpoints in:
+- `src/services/api.ts`
+- `src/aws/amplifyConfig.ts`
