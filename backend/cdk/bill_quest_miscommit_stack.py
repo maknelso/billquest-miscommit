@@ -15,6 +15,7 @@ from aws_cdk import (
     aws_s3_deployment as s3deploy,
     aws_s3_notifications as s3n,
     aws_sns as sns,
+    aws_sns_subscriptions as sns_subscriptions,
 )
 from constructs import Construct
 
@@ -511,6 +512,13 @@ class BillQuestMiscommitStack(Stack):
             topic_name=f"{stack_prefix}-Alarms",
         )
 
+        # Add email subscription to the SNS topic
+        alarm_topic.add_subscription(
+            sns_subscriptions.EmailSubscription(
+                "nelmak@amazon.com"
+            )  # Replace with your email
+        )
+
         # Output the SNS topic ARN
         CfnOutput(
             self,
@@ -518,8 +526,6 @@ class BillQuestMiscommitStack(Stack):
             value=alarm_topic.topic_arn,
             description="The SNS topic ARN for CloudWatch alarms.",
         )
-
-        # Note: To subscribe to this topic, use the AWS Console after deployment
 
         # Lambda Error Rate Alarms
         lambda_functions = {
@@ -547,6 +553,38 @@ class BillQuestMiscommitStack(Stack):
             lambda_error_alarm.add_alarm_action(
                 cloudwatch_actions.SnsAction(alarm_topic)
             )
+
+        # Create a composite alarm for Lambda errors
+        lambda_composite_alarm = cloudwatch.CompositeAlarm(
+            self,
+            "LambdaErrorsCompositeAlarm",
+            composite_alarm_name=f"{stack_prefix}-LambdaErrors-CompositeAlarm",
+            alarm_description="Composite alarm that triggers when any Lambda function has high error rates",
+            alarm_rule=cloudwatch.AlarmRule.any_of(
+                *[
+                    cloudwatch.AlarmRule.from_alarm(
+                        cloudwatch.Alarm(
+                            self,
+                            f"{name}HighErrorRateAlarm",
+                            metric=func.metric_errors(),
+                            threshold=5,
+                            evaluation_periods=3,
+                            alarm_name=f"{stack_prefix}-{name}-HighErrorRate",
+                            alarm_description=f"Alarm when {name} has a high error rate",
+                            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+                        ),
+                        cloudwatch.AlarmState.ALARM,
+                    )
+                    for name, func in lambda_functions.items()
+                ]
+            ),
+        )
+
+        # Add action to the composite alarm
+        lambda_composite_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
 
         # API Gateway 4xx Error Alarm
         api_4xx_alarm = cloudwatch.Alarm(
@@ -732,6 +770,33 @@ class BillQuestMiscommitStack(Stack):
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
         user_table_system_errors_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
+
+        # Create a composite alarm for DynamoDB throttling
+        dynamodb_throttling_alarm = cloudwatch.CompositeAlarm(
+            self,
+            "DynamoDBThrottlingCompositeAlarm",
+            composite_alarm_name=f"{stack_prefix}-DynamoDBThrottling-CompositeAlarm",
+            alarm_description="Composite alarm that triggers when any DynamoDB table experiences throttling",
+            alarm_rule=cloudwatch.AlarmRule.any_of(
+                cloudwatch.AlarmRule.from_alarm(
+                    billing_table_read_throttle_alarm, cloudwatch.AlarmState.ALARM
+                ),
+                cloudwatch.AlarmRule.from_alarm(
+                    billing_table_write_throttle_alarm, cloudwatch.AlarmState.ALARM
+                ),
+                cloudwatch.AlarmRule.from_alarm(
+                    user_table_read_throttle_alarm, cloudwatch.AlarmState.ALARM
+                ),
+                cloudwatch.AlarmRule.from_alarm(
+                    user_table_write_throttle_alarm, cloudwatch.AlarmState.ALARM
+                ),
+            ),
+        )
+
+        # Add action to the composite alarm
+        dynamodb_throttling_alarm.add_alarm_action(
             cloudwatch_actions.SnsAction(alarm_topic)
         )
 
