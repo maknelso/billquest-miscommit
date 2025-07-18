@@ -130,6 +130,7 @@ class BillQuestMiscommitStack(Stack):
             environment={  # Environment variables for the Lambda function
                 "TABLE_NAME": billing_data_table.table_name  # Pass DynamoDB table name
             },
+            tracing=lambda_.Tracing.ACTIVE,  # Enable X-Ray tracing
         )
 
         # Grant the Ingest Lambda necessary permissions with least privilege
@@ -162,6 +163,7 @@ class BillQuestMiscommitStack(Stack):
             # Max execution time. Adjust as needed.
             timeout=Duration.seconds(LAMBDA_CONFIG["timeout_seconds"]),
             environment={"TABLE_NAME": billing_data_table.table_name},
+            tracing=lambda_.Tracing.ACTIVE,  # Enable X-Ray tracing
         )
 
         # Grant the Query Lambda necessary permissions with least privilege
@@ -185,6 +187,9 @@ class BillQuestMiscommitStack(Stack):
                 allow_methods=API_GATEWAY["cors_methods"],
                 allow_headers=API_GATEWAY["cors_headers"],
             ),
+            deploy_options=apigw.StageOptions(
+                tracing_enabled=True
+            ),  # Enable X-Ray tracing for API Gateway
         )
 
         # Add a '/query' resource and integrate it with the Query Lambda
@@ -412,6 +417,7 @@ class BillQuestMiscommitStack(Stack):
             code=lambda_.Code.from_asset("./backend/lambda/update_user_info"),
             timeout=Duration.seconds(LAMBDA_CONFIG["timeout_seconds"]),
             environment={"TABLE_NAME": user_info_table.table_name},
+            tracing=lambda_.Tracing.ACTIVE,  # Enable X-Ray tracing
         )
 
         # Grant the Lambda necessary permissions with least privilege
@@ -441,6 +447,7 @@ class BillQuestMiscommitStack(Stack):
             code=lambda_.Code.from_asset("./backend/lambda/get_user_accounts"),
             timeout=Duration.seconds(LAMBDA_CONFIG["user_accounts_timeout"]),
             environment={"TABLE_NAME": user_info_table.table_name},
+            tracing=lambda_.Tracing.ACTIVE,  # Enable X-Ray tracing
         )
 
         # Grant the Lambda necessary permissions with least privilege
@@ -463,6 +470,9 @@ class BillQuestMiscommitStack(Stack):
                 allow_methods=API_GATEWAY["cors_methods"],
                 allow_headers=API_GATEWAY["cors_headers"],
             ),
+            deploy_options=apigw.StageOptions(
+                tracing_enabled=True
+            ),  # Enable X-Ray tracing for API Gateway
         )
 
         # Create an authorizer for the user access API using the same Cognito User Pool
