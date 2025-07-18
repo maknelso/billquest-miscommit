@@ -608,6 +608,133 @@ class BillQuestMiscommitStack(Stack):
 
         user_api_5xx_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alarm_topic))
 
+        # --- 20. DynamoDB CloudWatch Alarms ---
+        # Create alarms for the Billing Data DynamoDB table
+        billing_table_read_throttle_alarm = cloudwatch.Alarm(
+            self,
+            "BillingTableReadThrottleAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/DynamoDB",
+                metric_name="ReadThrottleEvents",
+                dimensions_map={"TableName": billing_data_table.table_name},
+                statistic="Sum",
+            ),
+            threshold=5,
+            evaluation_periods=2,
+            datapoints_to_alarm=2,
+            alarm_description="Alarm when Billing Data table experiences read throttling",
+            alarm_name=f"{stack_prefix}-BillingTable-ReadThrottles",
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        billing_table_read_throttle_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
+
+        billing_table_write_throttle_alarm = cloudwatch.Alarm(
+            self,
+            "BillingTableWriteThrottleAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/DynamoDB",
+                metric_name="WriteThrottleEvents",
+                dimensions_map={"TableName": billing_data_table.table_name},
+                statistic="Sum",
+            ),
+            threshold=5,
+            evaluation_periods=2,
+            datapoints_to_alarm=2,
+            alarm_description="Alarm when Billing Data table experiences write throttling",
+            alarm_name=f"{stack_prefix}-BillingTable-WriteThrottles",
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        billing_table_write_throttle_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
+
+        billing_table_system_errors_alarm = cloudwatch.Alarm(
+            self,
+            "BillingTableSystemErrorsAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/DynamoDB",
+                metric_name="SystemErrors",
+                dimensions_map={"TableName": billing_data_table.table_name},
+                statistic="Sum",
+            ),
+            threshold=1,
+            evaluation_periods=1,
+            alarm_description="Alarm when Billing Data table experiences system errors",
+            alarm_name=f"{stack_prefix}-BillingTable-SystemErrors",
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        billing_table_system_errors_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
+
+        # Create alarms for the User Info DynamoDB table
+        user_table_read_throttle_alarm = cloudwatch.Alarm(
+            self,
+            "UserTableReadThrottleAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/DynamoDB",
+                metric_name="ReadThrottleEvents",
+                dimensions_map={"TableName": user_info_table.table_name},
+                statistic="Sum",
+            ),
+            threshold=5,
+            evaluation_periods=2,
+            datapoints_to_alarm=2,
+            alarm_description="Alarm when User Info table experiences read throttling",
+            alarm_name=f"{stack_prefix}-UserTable-ReadThrottles",
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        user_table_read_throttle_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
+
+        user_table_write_throttle_alarm = cloudwatch.Alarm(
+            self,
+            "UserTableWriteThrottleAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/DynamoDB",
+                metric_name="WriteThrottleEvents",
+                dimensions_map={"TableName": user_info_table.table_name},
+                statistic="Sum",
+            ),
+            threshold=5,
+            evaluation_periods=2,
+            datapoints_to_alarm=2,
+            alarm_description="Alarm when User Info table experiences write throttling",
+            alarm_name=f"{stack_prefix}-UserTable-WriteThrottles",
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        user_table_write_throttle_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
+
+        user_table_system_errors_alarm = cloudwatch.Alarm(
+            self,
+            "UserTableSystemErrorsAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/DynamoDB",
+                metric_name="SystemErrors",
+                dimensions_map={"TableName": user_info_table.table_name},
+                statistic="Sum",
+            ),
+            threshold=1,
+            evaluation_periods=1,
+            alarm_description="Alarm when User Info table experiences system errors",
+            alarm_name=f"{stack_prefix}-UserTable-SystemErrors",
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        user_table_system_errors_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
+
         # Create CloudWatch Dashboard
         dashboard = cloudwatch.Dashboard(
             self, "BillQuestDashboard", dashboard_name=f"{stack_prefix}-Dashboard"
@@ -654,4 +781,83 @@ class BillQuestMiscommitStack(Stack):
             lambda_duration_widget,
             api_errors_widget,
             api_latency_widget,
+        )
+
+        # Create separate DynamoDB Dashboard
+        dynamodb_dashboard = cloudwatch.Dashboard(
+            self,
+            "BillQuestDynamoDBDashboard",
+            dashboard_name=f"{stack_prefix}-DynamoDB-Dashboard",
+        )
+
+        # Create DynamoDB dashboard widgets
+        dynamodb_capacity_widget = cloudwatch.GraphWidget(
+            title="DynamoDB Consumed Capacity",
+            left=[
+                # Billing Data Table read capacity
+                cloudwatch.Metric(
+                    namespace="AWS/DynamoDB",
+                    metric_name="ConsumedReadCapacityUnits",
+                    dimensions_map={"TableName": billing_data_table.table_name},
+                    statistic="Sum",
+                ),
+                # Billing Data Table write capacity
+                cloudwatch.Metric(
+                    namespace="AWS/DynamoDB",
+                    metric_name="ConsumedWriteCapacityUnits",
+                    dimensions_map={"TableName": billing_data_table.table_name},
+                    statistic="Sum",
+                ),
+                # User Info Table read capacity
+                cloudwatch.Metric(
+                    namespace="AWS/DynamoDB",
+                    metric_name="ConsumedReadCapacityUnits",
+                    dimensions_map={"TableName": user_info_table.table_name},
+                    statistic="Sum",
+                ),
+                # User Info Table write capacity
+                cloudwatch.Metric(
+                    namespace="AWS/DynamoDB",
+                    metric_name="ConsumedWriteCapacityUnits",
+                    dimensions_map={"TableName": user_info_table.table_name},
+                    statistic="Sum",
+                ),
+            ],
+            width=24,
+            height=6,
+        )
+
+        dynamodb_throttle_widget = cloudwatch.GraphWidget(
+            title="DynamoDB Throttled Requests",
+            left=[
+                # Billing Data Table throttled requests
+                cloudwatch.Metric(
+                    namespace="AWS/DynamoDB",
+                    metric_name="ThrottledRequests",
+                    dimensions_map={"TableName": billing_data_table.table_name},
+                    statistic="Sum",
+                ),
+                # User Info Table throttled requests
+                cloudwatch.Metric(
+                    namespace="AWS/DynamoDB",
+                    metric_name="ThrottledRequests",
+                    dimensions_map={"TableName": user_info_table.table_name},
+                    statistic="Sum",
+                ),
+            ],
+            width=24,
+            height=6,
+        )
+
+        # Add widgets to DynamoDB dashboard
+        dynamodb_dashboard.add_widgets(
+            dynamodb_capacity_widget, dynamodb_throttle_widget
+        )
+
+        # Output the DynamoDB dashboard URL
+        CfnOutput(
+            self,
+            "DynamoDBDashboardUrl",
+            value=f"https://console.aws.amazon.com/cloudwatch/home?region={Stack.of(self).region}#dashboards:name={stack_prefix}-DynamoDB-Dashboard",
+            description="The URL for the DynamoDB CloudWatch Dashboard.",
         )
