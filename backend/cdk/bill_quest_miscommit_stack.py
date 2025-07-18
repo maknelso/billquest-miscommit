@@ -18,6 +18,7 @@ from aws_cdk import (
     aws_sns_subscriptions as sns_subscriptions,
 )
 from constructs import Construct
+from aws_cdk.aws_lambda_python_alpha import PythonFunction
 
 # Import centralized configuration
 from backend.config.config import (
@@ -112,25 +113,16 @@ class BillQuestMiscommitStack(Stack):
 
         # --- 3. Lambda fx for S3 Ingestion (Reads from S3, writes to DynamoDB) ---
         # This function is triggered when new file is uploaded to rawfilesbucket.
-        ingest_lambda = lambda_.Function(
+        ingest_lambda = PythonFunction(
             self,
             "IngestDataLambda",
-            function_name=f"{stack_prefix}-IngestDataLambda-{S3_BUCKETS['raw_files'].split('-')[-1]}",
+            entry="./backend/lambda/ingest_data",  # directory with app.py and requirements.txt
+            index="app.py",  # your handler file
+            handler="lambda_handler",  # your handler function
             runtime=lambda_.Runtime.PYTHON_3_10,
-            # Point to 'app' and 'lambda_handler' function within the lambda directory
-            handler="app.lambda_handler",
-            code=lambda_.Code.from_asset(
-                # Path to your Lambda code directory, relative to your CDK app root
-                "./backend/lambda/ingest_data"
-            ),
-            timeout=Duration.seconds(
-                # Max execution time for the Lambda.
-                LAMBDA_CONFIG["timeout_seconds"]
-            ),
-            environment={  # Environment variables for the Lambda function
-                "TABLE_NAME": billing_data_table.table_name  # Pass DynamoDB table name
-            },
-            tracing=lambda_.Tracing.ACTIVE,  # Enable X-Ray tracing
+            timeout=Duration.seconds(LAMBDA_CONFIG["timeout_seconds"]),
+            environment={"TABLE_NAME": billing_data_table.table_name},
+            tracing=lambda_.Tracing.ACTIVE,
         )
 
         # Grant the Ingest Lambda necessary permissions with least privilege

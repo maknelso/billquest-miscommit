@@ -193,7 +193,16 @@ def query_by_account_items(params):
         # Add items from this account ID to the result
         all_items.extend(response.get("Items", []))
 
-    return all_items
+    # Option 2: Only filter by latest upload_timestamp if any items have it
+    timestamped_items = [item for item in all_items if item.get("upload_timestamp")]
+    if timestamped_items:
+        latest_ts = max(item["upload_timestamp"] for item in timestamped_items)
+        latest_items = [
+            item for item in timestamped_items if item["upload_timestamp"] == latest_ts
+        ]
+        return latest_items
+    else:
+        return all_items
 
 
 def query_by_date_items(params):
@@ -224,7 +233,16 @@ def query_by_date_items(params):
     response = table.query(
         IndexName="DateProductIndex", KeyConditionExpression=key_condition
     )
-    return response.get("Items", [])
+    items = response.get("Items", [])
+    timestamped_items = [item for item in items if item.get("upload_timestamp")]
+    if timestamped_items:
+        latest_ts = max(item["upload_timestamp"] for item in timestamped_items)
+        latest_items = [
+            item for item in timestamped_items if item["upload_timestamp"] == latest_ts
+        ]
+        return latest_items
+    else:
+        return items
 
 
 def query_by_invoice_items(params):
@@ -250,7 +268,16 @@ def query_by_invoice_items(params):
         IndexName="InvoiceIndex",
         KeyConditionExpression=Key("invoice_id").eq(invoice_id),
     )
-    return response.get("Items", [])
+    items = response.get("Items", [])
+    timestamped_items = [item for item in items if item.get("upload_timestamp")]
+    if timestamped_items:
+        latest_ts = max(item["upload_timestamp"] for item in timestamped_items)
+        latest_items = [
+            item for item in timestamped_items if item["upload_timestamp"] == latest_ts
+        ]
+        return latest_items
+    else:
+        return items
 
 
 def generate_filename(items):

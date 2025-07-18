@@ -1,54 +1,38 @@
 # lambda/ingest_data/app.py
-import csv
-import io
-import json
-import logging
-import os
-from decimal import Decimal
-
 import boto3
+import pandas as pd
+import io
+from decimal import Decimal
+import logging
+import json
+from botocore.exceptions import ClientError
+import os
+import datetime
+import math
 
-# Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-# Initialize clients
-dynamodb_client = boto3.resource("dynamodb")
-s3_client = boto3.client("s3")
+s3 = boto3.client("s3")
+dynamodb = boto3.resource("dynamodb")
 table_name = os.environ.get("TABLE_NAME")
-table = dynamodb_client.Table(table_name)
+table = dynamodb.Table(table_name)
 
 
 def check_if_processed(bucket, key):
-    """Check if a file was already processed by looking at its metadata.
-
-    Args:
-        bucket (str): S3 bucket name
-        key (str): S3 object key
-
-    Returns:
-        bool: True if the file was already processed, False otherwise
-
-    """
     try:
-        response = s3_client.head_object(Bucket=bucket, Key=key)
-        metadata = response.get("Metadata", {})
-        return metadata.get("processed") == "true"
-    except Exception as e:
-        logger.error(f"Error checking metadata: {str(e)}")
-        return False
+        response = s3.head_object(Bucket=bucket, Key=key)
+        return response.get("Metadata", {}).get("processed") == "true"
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "404":
+            return False
+        else:
+            raise
 
 
 def mark_file_as_processed(bucket, key):
-    """Mark a file as processed by setting metadata on the S3 object.
-
-    Args:
-        bucket (str): S3 bucket name
-        key (str): S3 object key
-
-    """
     copy_source = {"Bucket": bucket, "Key": key}
-    s3_client.copy_object(
+    s3.copy_object(
         CopySource=copy_source,
         Bucket=bucket,
         Key=key,
@@ -58,124 +42,131 @@ def mark_file_as_processed(bucket, key):
 
 
 def lambda_handler(event, context):
-    """Lambda function triggered by S3 events to process billing data CSV files.
-
-    This function:
-    1. Checks if the file was already processed
-    2. Downloads and parses the CSV file from S3
-    3. Validates the required fields
-    4. Writes the data to DynamoDB
-    5. Marks the file as processed
-
-    Args:
-        event (dict): S3 event notification
-        context (object): Lambda context object
-
-    Returns:
-        dict: Response indicating success or failure
-
-    """
     logger.info(f"Received event: {json.dumps(event)}")
+    upload_timestamp = datetime.datetime.utcnow().isoformat()
+    bucket = event["Records"][0]["s3"]["bucket"]["name"]
+    key = event["Records"][0]["s3"]["object"]["key"]
 
     try:
-        # Get the S3 bucket and key from the event
-        bucket = event["Records"][0]["s3"]["bucket"]["name"]
-        key = event["Records"][0]["s3"]["object"]["key"]
-
-        # Check if file was already processed
         if check_if_processed(bucket, key):
-            logger.info(f"File {key} was already processed. Skipping.")
+            logger.info(f"File {key} has already been processed, skipping.")
             return {
                 "statusCode": 200,
-                "body": json.dumps(f"File {key} was already processed. Skipping."),
+                "body": json.dumps(
+                    {
+                        "message": f"File {key} has already been processed, skipping further processing."
+                    }
+                ),
             }
 
-        # Get the file from S3
-        response = s3_client.get_object(Bucket=bucket, Key=key)
-        file_content = response["Body"].read().decode("utf-8")
+        response = s3.get_object(Bucket=bucket, Key=key)
+        excel_data = response["Body"].read()
+        df = pd.read_excel(io.BytesIO(excel_data))
 
-        # Process CSV data
-        csv_reader = csv.DictReader(io.StringIO(file_content))
-
-        # Validate CSV structure
-        required_fields = [
+        required_columns = [
             "payer_account_id",
             "invoice_id",
             "product_code",
             "bill_period_start_date",
         ]
-        sample_row = next(csv_reader, None)
-        if not sample_row:
-            raise ValueError("CSV file is empty or improperly formatted")
+        for col in required_columns:
+            if col not in df.columns:
+                logger.error(f"Missing required column: {col}")
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps(
+                        {
+                            "message": f"Missing required column: {col}",
+                            "processed": False,
+                        }
+                    ),
+                }
 
-        for field in required_fields:
-            if field not in sample_row:
-                raise ValueError(f"CSV file is missing required field: {field}")
-
-        # Reset the reader to include the first row
-        csv_reader = csv.DictReader(io.StringIO(file_content))
-
-        # Track processing statistics
+        unique_items = {}
         processed_count = 0
         error_count = 0
-
-        # Batch write to DynamoDB
-        with table.batch_writer() as batch:
-            for row_num, row in enumerate(
-                csv_reader, start=2
-            ):  # Start at 2 to account for header row
-                try:
-                    # Clean and format the data
-                    item = {
-                        "payer_account_id": str(row["payer_account_id"]).strip(),
-                        "invoice_id#product_code": f"{row['invoice_id']}#{row['product_code']}",
-                        "bill_period_start_date": row["bill_period_start_date"],
-                        "invoice_id": row["invoice_id"],
-                        "product_code": row["product_code"],
-                        "cost_before_tax": Decimal(str(row["cost_before_tax"]))
-                        if row["cost_before_tax"]
-                        else Decimal("0"),
-                    }
-
-                    # Add optional fields if they exist and have values
-                    for field in [
-                        "credits_before_discount",
-                        "credits_after_discount",
-                        "sp_discount",
-                        "ubd_discount",
-                        "prc_discount",
-                        "rvd_discount",
-                        "edp_discount",
-                        "edp_discount_%",
-                    ]:
-                        if field in row and row[field]:
-                            try:
-                                # Convert to Decimal instead of float
-                                item[field.replace("%", "percent")] = Decimal(
-                                    str(row[field])
-                                )
-                            except:
-                                item[field.replace("%", "percent")] = Decimal("0")
-
-                    # Write to DynamoDB
-                    batch.put_item(Item=item)
-                    processed_count += 1
-
-                except Exception as row_error:
-                    logger.error(
-                        f"Row {row_num}: Error processing row: {str(row_error)}"
+        for index, row in df.iterrows():
+            payer_account_id = str(row.get("payer_account_id", "")).strip()
+            invoice_id = str(row.get("invoice_id", "")).strip()
+            product_code = str(row.get("product_code", "")).strip()
+            bill_period_start_date = str(row.get("bill_period_start_date", "")).strip()
+            if (
+                not payer_account_id
+                or not invoice_id
+                or not product_code
+                or not bill_period_start_date
+            ):
+                logger.error(
+                    f"Row {index}: Missing required key fields. Row data: {row}"
+                )
+                error_count += 1
+                continue
+            key_tuple = (payer_account_id, f"{invoice_id}#{product_code}")
+            item = {
+                "payer_account_id": payer_account_id,
+                "invoice_id#product_code": key_tuple[1],
+                "bill_period_start_date": bill_period_start_date,
+                "invoice_id": invoice_id,
+                "product_code": product_code,
+            }
+            # Numeric fields to check for NaN/Infinity
+            numeric_fields = [
+                "cost_before_tax",
+                "credits_before_discount",
+                "credits_after_discount",
+                "sp_discount",
+                "ubd_discount",
+                "prc_discount",
+                "rvd_discount",
+                "edp_discount",
+                "edp_discount_%",
+            ]
+            for field in numeric_fields:
+                value = row.get(field)
+                # Replace NaN or Infinity with 0
+                if (
+                    value is not None
+                    and isinstance(value, float)
+                    and (math.isnan(value) or math.isinf(value))
+                ):
+                    logger.warning(
+                        f"Row {index}: Field '{field}' is NaN or Infinity, replacing with 0. Row data: {row}"
                     )
-                    error_count += 1
+                    value = 0
+                if value not in [None, ""]:
+                    try:
+                        item[field.replace("%", "percent")] = Decimal(str(value))
+                    except Exception as e:
+                        logger.error(
+                            f"Row {index}: Error converting field '{field}' value '{value}' to Decimal: {e}. Row data: {row}"
+                        )
+                        item[field.replace("%", "percent")] = Decimal("0")
+            item["upload_timestamp"] = upload_timestamp
+            unique_items[key_tuple] = item
 
-        # Mark file as processed
-        mark_file_as_processed(bucket, key)
-        logger.info(f"Successfully processed and marked file {key}")
+        logger.info(f"Total unique items to write: {len(unique_items)}")
+        with table.batch_writer() as batch:
+            for item in unique_items.values():
+                logger.info(f"Writing item to DynamoDB: {item}")
+                batch.put_item(Item=item)
+                processed_count += 1
+
+        logger.info(
+            f"Successfully processed {processed_count} items, {error_count} errors/skipped rows."
+        )
+
+        try:
+            mark_file_as_processed(bucket, key)
+            logger.info(f"Successfully marked file {key} as processed")
+        except Exception as e:
+            logger.error(f"Error marking file as processed: {str(e)}")
 
         return {
             "statusCode": 200,
             "body": json.dumps(
                 {
-                    "message": f"Successfully processed {key}",
+                    "message": f"Successfully processed {key}, uploaded to DynamoDB, and archived",
+                    "processed": True,
                     "statistics": {
                         "processed": processed_count,
                         "errors": error_count,
@@ -186,8 +177,10 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        logger.error(f"Error processing file: {str(e)}")
+        logger.error(f"Error processing file {key}: {str(e)}")
         return {
             "statusCode": 500,
-            "body": json.dumps(f"Error processing file: {str(e)}"),
+            "body": json.dumps(
+                {"message": f"Error processing {key}: {str(e)}", "processed": False}
+            ),
         }
