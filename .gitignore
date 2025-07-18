@@ -63,3 +63,20 @@ test-results/
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+backend/lambda/query_data/bin/
+backend/lambda/query_data/boto3-1.28.38.dist-info/
+backend/lambda/query_data/boto3/
+backend/lambda/query_data/botocore-1.31.85.dist-info/
+backend/lambda/query_data/botocore/
+backend/lambda/query_data/dateutil/
+backend/lambda/query_data/jmespath-1.0.1.dist-info/
+backend/lambda/query_data/jmespath/
+backend/lambda/query_data/python_dateutil-2.9.0.post0.dist-info/
+backend/lambda/query_data/requirements.txt
+backend/lambda/query_data/s3transfer-0.6.2.dist-info/
+backend/lambda/query_data/s3transfer/
+backend/lambda/query_data/six-1.17.0.dist-info/
+backend/lambda/query_data/six.py
+backend/lambda/query_data/urllib3-2.0.7.dist-info/
+backend/lambda/query_data/urllib3/
