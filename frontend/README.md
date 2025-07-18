@@ -5,8 +5,11 @@
 CloudFront website link: https://d2qvugcag2us70.cloudfront.net/
 
 Demo credentials:
-- Username: nelmak@amazon.com
+- Username: nelmak@xxx.com
 - Password: Test123!
+
+- payer_account_id: xxx4118
+- invoice_id: EUINFR25-xxx134
 
 ## Local Development
 
