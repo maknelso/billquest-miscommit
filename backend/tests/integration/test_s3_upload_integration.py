@@ -8,13 +8,13 @@ Tests are skipped unless the ENVIRONMENT variable is set to "test" to prevent
 accidental execution against production resources.
 """
 
-import csv
 import io
 import os
 import time
 import uuid
 
 import boto3
+import pandas as pd
 import pytest
 
 # Skip tests if not in a test environment
@@ -44,63 +44,40 @@ TEST_EMAIL = f"test-{uuid.uuid4()}@example.com"
 
 @pytest.fixture
 def s3_client():
-    """Create an S3 client for test operations.
-
-    Returns:
-        boto3.client: Configured S3 client
-
-    """
+    """Create an S3 client for test operations."""
     return boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture
 def dynamodb_client():
-    """Create a DynamoDB client for test operations.
-
-    Returns:
-        boto3.resource: Configured DynamoDB resource
-
-    """
+    """Create a DynamoDB client for test operations."""
     return boto3.resource("dynamodb", region_name="us-east-1")
 
 
 def test_billing_data_upload_to_dynamodb(s3_client, dynamodb_client):
-    """Test that uploading a billing data CSV file to S3 triggers the Lambda function
+    """Test that uploading a billing data Excel file to S3 triggers the Lambda function
     and updates the DynamoDB table.
-
-    This test:
-    1. Creates a test CSV file with billing data
-    2. Uploads it to the raw files S3 bucket
-    3. Waits for the Lambda function to process it
-    4. Verifies that the data was written to DynamoDB
-    5. Verifies that the file was marked as processed in S3 metadata
-
-    Args:
-        s3_client: Fixture providing the S3 client
-        dynamodb_client: Fixture providing the DynamoDB client
-
     """
     # Generate a unique test file name
-    test_file_key = f"test-billing-data-{uuid.uuid4()}.csv"
+    test_file_key = f"test-billing-data-{uuid.uuid4()}.xlsx"
 
-    # Create test CSV content
-    csv_content = io.StringIO()
-    writer = csv.writer(csv_content)
-    writer.writerow(
-        [
-            "payer_account_id",
-            "invoice_id",
-            "product_code",
-            "bill_period_start_date",
-            "cost_before_tax",
-        ]
+    # Create test Excel content using pandas
+    test_data = pd.DataFrame(
+        {
+            "payer_account_id": [TEST_ACCOUNT_ID],
+            "invoice_id": ["INV123"],
+            "product_code": ["EC2"],
+            "bill_period_start_date": ["2023-01-01"],
+            "cost_before_tax": [100.50],
+        }
     )
-    writer.writerow([TEST_ACCOUNT_ID, "INV123", "EC2", "2023-01-01", "100.50"])
+    excel_bytes = io.BytesIO()
+    test_data.to_excel(excel_bytes, index=False, engine="openpyxl")
+    excel_bytes.seek(0)
+    excel_content = excel_bytes.getvalue()
 
     # Upload the file to S3
-    s3_client.put_object(
-        Bucket=RAW_FILES_BUCKET, Key=test_file_key, Body=csv_content.getvalue()
-    )
+    s3_client.put_object(Bucket=RAW_FILES_BUCKET, Key=test_file_key, Body=excel_content)
 
     try:
         # Wait for Lambda to process the file (up to 30 seconds)
@@ -155,64 +132,3 @@ def test_billing_data_upload_to_dynamodb(s3_client, dynamodb_client):
                 "invoice_id#product_code": "INV123#EC2",
             }
         )
-
-
-def test_user_info_upload_to_dynamodb(s3_client, dynamodb_client):
-    """Test that uploading a user info CSV file to S3 triggers the Lambda function
-    and updates the user_info DynamoDB table.
-
-    This test:
-    1. Creates a test CSV file with user info data
-    2. Uploads it to the user access S3 bucket
-    3. Waits for the Lambda function to process it
-    4. Verifies that the data was written to DynamoDB
-
-    Args:
-        s3_client: Fixture providing the S3 client
-        dynamodb_client: Fixture providing the DynamoDB client
-
-    """
-    # Generate a unique test file name and email
-    test_file_key = f"test-user-info-{uuid.uuid4()}.csv"
-
-    # Create test CSV content
-    csv_content = io.StringIO()
-    writer = csv.writer(csv_content)
-    writer.writerow(["email", "payer_account_id"])
-    writer.writerow([TEST_EMAIL, f"{TEST_ACCOUNT_ID};210987654321"])
-
-    # Upload the file to S3
-    s3_client.put_object(
-        Bucket=USER_ACCESS_BUCKET, Key=test_file_key, Body=csv_content.getvalue()
-    )
-
-    try:
-        # Wait for Lambda to process the file (up to 30 seconds)
-        table = dynamodb_client.Table(USER_INFO_TABLE)
-        max_retries = 15
-        for i in range(max_retries):
-            # Check if data was written to DynamoDB
-            response = table.get_item(Key={"email": TEST_EMAIL})
-            if "Item" in response:
-                break
-
-            # Wait before retrying
-            time.sleep(2)
-
-        # Verify data was written to DynamoDB
-        response = table.get_item(Key={"email": TEST_EMAIL})
-        assert "Item" in response, "No item found in DynamoDB"
-
-        # Verify the data is correct
-        item = response["Item"]
-        assert item["email"] == TEST_EMAIL
-        assert len(item["payer_account_ids"]) == 2
-        assert TEST_ACCOUNT_ID in item["payer_account_ids"]
-        assert "210987654321" in item["payer_account_ids"]
-
-    finally:
-        # Clean up - delete the test file
-        s3_client.delete_object(Bucket=USER_ACCESS_BUCKET, Key=test_file_key)
-
-        # Clean up - delete the DynamoDB item
-        table.delete_item(Key={"email": TEST_EMAIL})

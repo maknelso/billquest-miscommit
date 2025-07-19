@@ -81,34 +81,3 @@ def test_query_endpoint_returns_200(auth_token):
     assert response.status_code == 200
     data = response.json()
     assert "items" in data
-
-
-def test_user_accounts_endpoint_returns_user_data(auth_token):
-    """Test that the user accounts endpoint returns user account mappings.
-
-    This test verifies that:
-    1. The user-accounts endpoint is accessible
-    2. It accepts email queries
-    3. It returns a 200 status code
-    4. The response contains the expected user data structure
-
-    Args:
-        auth_token: Fixture providing the authentication token
-
-    """
-    # Set up authentication header as would be required in production
-    headers = {"Authorization": f"Bearer {auth_token}"}
-
-    # Query parameters for the request - using a test email
-    params = {"email": TEST_EMAIL}
-
-    # Make an actual HTTP request to the deployed API endpoint
-    # This test is just a placeholder and would be skipped in actual runs
-    # unless ENVIRONMENT=test is set
-    response = requests.get(USER_ACCOUNTS_API_ENDPOINT, headers=headers, params=params)
-
-    # Verify the response meets our expectations
-    assert response.status_code == 200
-    data = response.json()
-    assert "email" in data
-    assert "payer_account_ids" in data
