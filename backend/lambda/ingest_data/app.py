@@ -8,6 +8,7 @@ import json
 from botocore.exceptions import ClientError
 import os
 import datetime
+from datetime import timezone
 import math
 
 logging.basicConfig(level=logging.INFO)
@@ -43,8 +44,7 @@ def mark_file_as_processed(bucket, key):
 
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
-    # Fix: Use timezone-aware UTC datetime
-    upload_timestamp = datetime.datetime.now(datetime.UTC).isoformat()
+    upload_timestamp = datetime.datetime.now(timezone.utc).isoformat()
     bucket = event["Records"][0]["s3"]["bucket"]["name"]
     key = event["Records"][0]["s3"]["object"]["key"]
 
