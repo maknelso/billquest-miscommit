@@ -43,7 +43,8 @@ def mark_file_as_processed(bucket, key):
 
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
-    upload_timestamp = datetime.datetime.utcnow().isoformat()
+    # Fix: Use timezone-aware UTC datetime
+    upload_timestamp = datetime.datetime.now(datetime.UTC).isoformat()
     bucket = event["Records"][0]["s3"]["bucket"]["name"]
     key = event["Records"][0]["s3"]["object"]["key"]
 

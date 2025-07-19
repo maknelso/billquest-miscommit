@@ -1,6 +1,6 @@
 """Unit tests for the ingest_data Lambda function.
 
-This module tests the Lambda function that processes CSV files from S3 and writes data to DynamoDB.
+This module tests the Lambda function that processes Excel files from S3 and writes data to DynamoDB.
 It mocks all AWS dependencies to isolate the function's business logic.
 """
 
@@ -8,14 +8,16 @@ import json
 import os
 import sys
 from unittest.mock import MagicMock, patch
+import pandas as pd
+import io
 
 
-def test_process_csv_file():
-    """Test the Lambda function's ability to process a CSV file from S3.
+def test_process_excel_file():
+    """Test the Lambda function's ability to process an Excel file from S3.
 
     This test verifies that:
     1. The function correctly checks if a file was already processed
-    2. It properly reads and parses CSV data from S3
+    2. It properly reads and parses Excel data from S3
     3. It writes the processed data to DynamoDB
     4. It marks the file as processed after successful processing
     5. It returns a proper success response with statistics
@@ -30,14 +32,26 @@ def test_process_csv_file():
     mock_s3_client = MagicMock()
     mock_s3_client.head_object.return_value = {"Metadata": {}}  # File not processed
 
-    # Create mock CSV content
-    csv_content = """payer_account_id,invoice_id,product_code,bill_period_start_date,cost_before_tax
-123456789012,INV123,EC2,2023-01-01,100.50
-123456789012,INV123,S3,2023-01-01,50.25"""
+    # Create mock Excel content using pandas
+    excel_data = pd.DataFrame(
+        {
+            "payer_account_id": ["123456789012", "123456789012"],
+            "invoice_id": ["INV123", "INV123"],
+            "product_code": ["EC2", "S3"],
+            "bill_period_start_date": ["2023-01-01", "2023-01-01"],
+            "cost_before_tax": [100.50, 50.25],
+        }
+    )
+
+    # Convert to Excel bytes
+    excel_bytes = io.BytesIO()
+    excel_data.to_excel(excel_bytes, index=False, engine="openpyxl")
+    excel_bytes.seek(0)
+    excel_content = excel_bytes.getvalue()
 
     # Mock S3 get_object response
     mock_s3_client.get_object.return_value = {
-        "Body": MagicMock(read=MagicMock(return_value=csv_content.encode()))
+        "Body": MagicMock(read=MagicMock(return_value=excel_content))
     }
 
     # Mock DynamoDB resource and table
@@ -79,13 +93,13 @@ def test_process_csv_file():
             app.s3_client = mock_s3_client
             app.table = mock_table
 
-            # Create an S3 event
+            # Create an S3 event with .xlsx extension
             event = {
                 "Records": [
                     {
                         "s3": {
                             "bucket": {"name": "test-bucket"},
-                            "object": {"key": "test-file.csv"},
+                            "object": {"key": "test-file.xlsx"},  # Changed to .xlsx
                         }
                     }
                 ]
@@ -101,10 +115,12 @@ def test_process_csv_file():
 
             # Verify S3 interactions
             mock_s3_client.head_object.assert_called_once_with(
-                Bucket="test-bucket", Key="test-file.csv"
+                Bucket="test-bucket",
+                Key="test-file.xlsx",  # Changed to .xlsx
             )
             mock_s3_client.get_object.assert_called_once_with(
-                Bucket="test-bucket", Key="test-file.csv"
+                Bucket="test-bucket",
+                Key="test-file.xlsx",  # Changed to .xlsx
             )
 
             # Verify the file was marked as processed
@@ -173,19 +189,19 @@ def test_already_processed_file():
             def mock_format_success(message, **kwargs):
                 return {
                     "statusCode": 200,
-                    "body": "File test-file.csv was already processed. Skipping.",
+                    "body": "File test-file.xlsx was already processed. Skipping.",  # Changed to .xlsx
                 }
 
             # Replace the format_success_response function
             app.format_success_response = mock_format_success
 
-            # Create an S3 event
+            # Create an S3 event with .xlsx extension
             event = {
                 "Records": [
                     {
                         "s3": {
                             "bucket": {"name": "test-bucket"},
-                            "object": {"key": "test-file.csv"},
+                            "object": {"key": "test-file.xlsx"},  # Changed to .xlsx
                         }
                     }
                 ]
@@ -196,15 +212,19 @@ def test_already_processed_file():
 
             # Verify S3 interactions
             mock_s3_client.head_object.assert_called_once_with(
-                Bucket="test-bucket", Key="test-file.csv"
+                Bucket="test-bucket",
+                Key="test-file.xlsx",  # Changed to .xlsx
             )
 
-            # Verify get_object was NOT called (file skipped)
+            # Verify no other S3 operations were called
             mock_s3_client.get_object.assert_not_called()
+            mock_s3_client.copy_object.assert_not_called()
+
+            # Verify DynamoDB was not called
+            mock_table.batch_writer.assert_not_called()
 
             # Verify success response was returned
             assert response["statusCode"] == 200
-            assert "processed" in response["body"]
 
     finally:
         # Clean up
