@@ -1,20 +1,20 @@
 """End-to-End test for the complete data processing flow.
 
 This test verifies the entire data processing pipeline from file upload to data retrieval.
-It uploads a test CSV file to S3, waits for Lambda to process it, and then queries the API
+It uploads a test Excel file to S3, waits for Lambda to process it, and then queries the API
 to verify the data was correctly processed and stored.
 
 Tests are skipped unless the ENVIRONMENT variable is set to "test" to prevent
 accidental execution against production resources.
 """
 
-import csv
 import io
 import os
 import time
 import uuid
 
 import boto3
+import pandas as pd
 import pytest
 import requests
 
@@ -60,36 +60,37 @@ def test_end_to_end_data_flow(s3_client, dynamodb_client):
     """Test the complete data flow from file upload to data retrieval.
 
     This test:
-    1. Creates a test CSV file with billing data
+    1. Creates a test Excel file with billing data
     2. Uploads it to the S3 bucket
     3. Waits for the Lambda function to process it
     4. Queries the API to retrieve the processed data
     5. Verifies the data matches what was uploaded
     """
     # Generate a unique test file name
-    test_file_key = f"test-billing-data-{uuid.uuid4()}.csv"
+    test_file_key = f"test-billing-data-{uuid.uuid4()}.xlsx"
 
-    # Create test CSV content
-    csv_content = io.StringIO()
-    writer = csv.writer(csv_content)
-    writer.writerow(
-        [
-            "payer_account_id",
-            "invoice_id",
-            "product_code",
-            "bill_period_start_date",
-            "cost_before_tax",
-        ]
+    # Create test Excel content using pandas
+    test_data = pd.DataFrame(
+        {
+            "payer_account_id": [TEST_ACCOUNT_ID],
+            "invoice_id": [TEST_INVOICE_ID],
+            "product_code": [TEST_PRODUCT_CODE],
+            "bill_period_start_date": [TEST_DATE],
+            "cost_before_tax": [float(TEST_COST)],
+        }
     )
-    writer.writerow(
-        [TEST_ACCOUNT_ID, TEST_INVOICE_ID, TEST_PRODUCT_CODE, TEST_DATE, TEST_COST]
-    )
+
+    # Convert to Excel bytes
+    excel_bytes = io.BytesIO()
+    test_data.to_excel(excel_bytes, index=False, engine="openpyxl")
+    excel_bytes.seek(0)
+    excel_content = excel_bytes.getvalue()
 
     try:
         # Step 1: Upload the file to S3
         print(f"Uploading test file {test_file_key} to S3...")
         s3_client.put_object(
-            Bucket=RAW_FILES_BUCKET, Key=test_file_key, Body=csv_content.getvalue()
+            Bucket=RAW_FILES_BUCKET, Key=test_file_key, Body=excel_content
         )
 
         # Step 2: Wait for Lambda to process the file (up to 60 seconds)
