@@ -1,12 +1,16 @@
 # BillQuest Miscommit
+Problem:
+Currently, Account Managers cuts over 40 SIM tickets to Analysts per year to retrieve Discount 
+Program data for their customers.
 
-A web application for analyzing and visualizing AWS billing data, with a focus on identifying miscommitted resources.
+Solution: 
+A full-stack system with web app that allows Account Managers to self-service by registering,
+logging in credentials, and downloading Discount Program data for their customers.
 
 ## Project Structure
 
 - `backend/`: Contains the AWS CDK infrastructure and Lambda functions
 - `frontend/`: Contains the React/TypeScript frontend application
-- `data/`: Contains sample data files for testing
 
 ## Getting Started
 
@@ -25,7 +29,8 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pip install -r backend/lambda/requirements.txt
 
 # Deploy the CDK stack
 cd backend
@@ -44,15 +49,3 @@ npm run dev
 
 - Run `npm run lint` in the frontend directory to lint the TypeScript code
 - Run `npm run lint:cfn` in the backend directory to lint the CloudFormation templates
-
-## Configuration
-
-Environment-specific configuration is stored in `backend/config/config.py`. To switch between environments:
-
-```bash
-# For development (default)
-export ENVIRONMENT=dev
-
-# For production
-export ENVIRONMENT=prod
-```
