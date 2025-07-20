@@ -7,6 +7,8 @@ Program data for their customers.
 A full-stack system with web app that allows Account Managers to self-service by registering,
 logging in credentials, and downloading Discount Program data for their customers.
 
+Amazon Cognito is used to ensure that only authorized Account Managers can access the Customer information they are permitted to view.
+
 ## Project Structure
 
 - `backend/`: Contains the AWS CDK infrastructure for S3s, Lambdas, DynamoDBs, API Gateway, Cognito, CloudWatch, SNS Topic
