@@ -1,9 +1,9 @@
 # BillQuest Miscommit
-Problem:
+**Problem:**
 Currently, Account Managers cuts over 40 SIM tickets to Analysts per year to retrieve Discount 
 Program data for their customers.
 
-Solution: 
+**Solution:**
 A full-stack system with web app that allows Account Managers to self-service by registering,
 logging in credentials, and downloading Discount Program data for their customers.
 
