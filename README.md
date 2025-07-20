@@ -9,7 +9,7 @@ logging in credentials, and downloading Discount Program data for their customer
 
 ## Project Structure
 
-- `backend/`: Contains the AWS CDK infrastructure and Lambda functions
+- `backend/`: Contains the AWS CDK infrastructure for S3s, Lambdas, DynamoDBs, API Gateway, Cognito, CloudWatch, SNS Topic
 - `frontend/`: Contains the React/TypeScript frontend application
 
 ## Getting Started
