@@ -65,7 +65,6 @@ def lambda_handler(event, context):
         dict: API Gateway response with status code, headers, and body
 
     """
-    # Log the incoming event
     logger.info(f"Received event: {json.dumps(event)}")
 
     # Handle OPTIONS request (preflight)
